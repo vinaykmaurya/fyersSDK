@@ -1,5 +1,9 @@
 moduleName = "fyersModel1"
 
+
+
+import tracemalloc
+
 import urllib.parse
 import hashlib
 import json
@@ -11,12 +15,16 @@ import requests
 import json
 import urllib
 import aiohttp
-
-data_apis = ['/searchSymbols', '/getHistoricalOHLCV', '/level2data', '/getQuotes', '/getQuickQuote', '/symbolsinfo']
+import asyncio
+import websockets
+import json
+from concurrent.futures import ThreadPoolExecutor
 
 class Config:
-    Api = "https://api.fyers.in/api/v2"
-    data_Api= "https://api.fyers.in/data-rest/v2"
+    Api = "https://api-t1.fyers.in/trade/v3" 
+    # Api = "https://api-t1.fydev.tech/trade/dev"
+    historyDataUrl = "https://api.fyers.in/data-rest/v2"
+    data_Api= "https://api-t1.fyers.in/api/v2/data"
     authUrl = "https://api.fyers.in/api/v2"
     get_profile = '/profile'
     tradebook = '/tradebook'
@@ -25,6 +33,8 @@ class Config:
     convertPosition = '/positions'
     funds = '/funds'
     orders = '/orders'
+    gttorders = '/gtt/orders'
+
     minquantity = '/minquantity'
     orderStatus = '/order-status'
     marketStatus = '/market-status'
@@ -35,12 +45,10 @@ class Config:
 
     dataVendorTD = "truedata-ws"
 
-    multi_orders = '/orders-multi'
-    history = '/history/'
+    multi_orders = '/multi-order'
+    history = '/history'
     quotes = '/quotes/v2'
-    market_depth = '/depth/v2/'
-
-
+    market_depth = '/depth/v2'
 
 class FyersServiceSync:
 
@@ -48,33 +56,35 @@ class FyersServiceSync:
         self.content = 'application/json'    
 
     def postCall(self, api, header, data=None):
-        response = requests.post(Config.Api+api,headers={"Authorization":header, 'Content-Type': self.content}, json = data)
+        response = requests.post(Config.Api+api,headers={"Authorization":header, 'Content-Type': self.content}, data = data)
         return response.json()
     
 
     def getCall(self, api, header, data=None,data_flag=False):
         if data_flag:
-            URL =  Config.data_Api +api
+            if api == '/history':
+                URL = Config.historyDataUrl + api
+            else:
+                URL =  Config.data_Api +api
         else:
             URL = Config.Api + api
 
-        print("url1",URL)
 
-        print("data",data)
         if data is not None:
             url_params = urllib.parse.urlencode(data)
             URL = URL+ "?" + url_params
         print("url",URL)
-        response = requests.get(url = URL,headers={"Authorization":header, 'Content-Type': self.content})      
+        response = requests.get(url = URL,headers={"Authorization":header, 'Content-Type': self.content , "version":"V3"})      
         print("response",response)
         return response.json()
 
     def deleteCall(self,api, header, data):
-        response =  requests.delete(url = Config.Api+api,body=json.dumps(data), headers={"Authorization":header, 'Content-Type': self.content}, json = data)
+        response =  requests.delete(url = Config.Api+api,data=json.dumps(data), headers={"Authorization":header, 'Content-Type': self.content})
         return response.json()
 
     def putCall(self,api,header,data):
-        response = requests.put(url = Config.Api+api,body=json.dumps(data),headers={"Authorization":header, 'Content-Type': self.content}, json = data)
+        response = requests.put(url = Config.Api+api,headers={"Authorization":header, 'Content-Type': self.content},json=data)
+        print(response)
         return response.json()
 
 class FyersServiceAsync:
@@ -82,36 +92,45 @@ class FyersServiceAsync:
     def __init__(self):
         self.content = 'application/json'    
 
+
     async def postAsyncCall(self,api, header, data=None):
         async with aiohttp.ClientSession(headers={'Authorization': header, 'Content-Type': self.content}) as session:
             url = Config.Api + api
-            async with session.post(url, body=json.dumps(data)) as response:
-                return await response.json()
-   
+            async with session.post(url, data=json.dumps(data)) as response:
+                    response = await response.text()
+                    print(response)
 
-    async def getAsyncCall(self, api, header, data=None,data_flag=False):
+                    return response
+
+    async def getAsyncCall(self, api, header, params=None, data_flag=False):
+        
         if data_flag:
-            url = Config.data_Api + api
+            if api == '/history':
+                URL = Config.historyDataUrl + api
+            else:
+                URL =  Config.data_Api +api
         else:
-            url = Config.Api + api
-        if data is not None:
-            url_params = urllib.parse.urlencode(data)
-            url = url + "?" + url_params
+            URL = Config.Api + api
+
+
         async with aiohttp.ClientSession(headers={'Authorization': header, 'Content-Type': self.content}) as session:
-            async with session.get(url) as response:
-                return await response.json()
+            async with session.get(URL, params=params) as response:
+                response_data = await response.json()
+                return response_data
 
 
     async def deleteAsyncCall(self, api, header, data):
         async with aiohttp.ClientSession(headers={'Authorization': header, 'Content-Type': self.content}) as session:
             url = Config.Api + api
-            async with session.delete(url, body=json.dumps(data)) as response:
+            async with session.delete(url, data=json.dumps(data)) as response:
                 return await response.json()
 
-    async def putAsyncCall(self, api, header, data):
+    async def patchAsyncCall(self, api, header, data):
         async with aiohttp.ClientSession(headers={'Authorization': header, 'Content-Type': self.content}) as session:
             url = Config.Api + api
-            async with session.put(url,  body=json.dumps(data) ) as response:
+            json_data = json.dumps(data).encode('utf-8')
+
+            async with session.patch(url,  data=json_data ) as response:
                 return await response.json()
 
 
@@ -159,7 +178,7 @@ class SessionModel:
         return response
 
 
-class FyersModelv3:
+class FyersModelv3():
 
     """
     A class that provides methods for making API calls synchronously or asynchronously.
@@ -181,7 +200,6 @@ class FyersModelv3:
         self.client_id = client_id
         self.token = token
         self.is_async = is_async
-        print("innn" )
         self.header = "{}:{}".format(self.client_id, self.token)
         if is_async:
             print("FyersAsyncService1")
@@ -213,7 +231,7 @@ class FyersModelv3:
         """
         if self.is_async:
             print("Tradebook async")
-            response = asyncio.run(self.service.getAsyncCall(Config.tradebook, self.header , data=data))
+            response = asyncio.run(self.service.getAsyncCall(Config.tradebook, self.header , params=data))
         else:
             print("Tradebook SYnc")
             response = self.service.getCall(Config.tradebook, self.header, data=data)
@@ -258,24 +276,26 @@ class FyersModelv3:
 
         if self.is_async:
             print("innnnns7777777")
-            response = asyncio.run(self.service.getAsyncCall(Config.holdings, self.header, data=data))
+            response = asyncio.run(self.service.getAsyncCall(Config.holdings, self.header, params=data))
         else:
             print("innnnns888888")
             response = self.service.getCall(Config.holdings, self.header, data=data)
         return response
-
-    def convert_position(self, data):
-        """
-        Convert position
+    
+    def get_orders(self, data):
 
         """
+        Retrieves order details by Id
+
+        """
+
         if self.is_async:
             print("innnnns7777777")
-            response = asyncio.run(self.service.putAsyncCall(Config.convertPosition, self.header, data))
+            response = asyncio.run(self.service.getAsyncCall(Config.multi_orders, self.header, params=data))
         else:
-            response = self.service.putCall(Config.convertPosition, self.header, data)
+            print("innnnns888888")
+            response = self.service.getCall(Config.multi_orders, self.header, data=data)
         return response
-      
 
     
     def orderbook(self, data=None):
@@ -286,49 +306,12 @@ class FyersModelv3:
         """
         if self.is_async:
             print("innnnns7777777")
-            response = asyncio.run(self.service.getAsyncCall(Config.orders, self.header, data=data))
+            response = asyncio.run(self.service.getAsyncCall(Config.orders, self.header, params=data))
         else:
             print("innnnns888888")
             response = self.service.getCall(Config.orders, self.header, data=data)
         return response
 
-    def cancel_order(self, data):
-        """
-        cancel position
-
-        """
-        if self.is_async:
-            print("innnnns7777777")
-            response = asyncio.run(self.service.deleteAsyncCall(Config.orders, self.header, data))
-        else:
-            response = self.service.deleteCall(Config.orders, self.header, data)
-        return response
-        
-
-    def place_order(self, data):
-        """
-        Order Placement
-
-        """
-        if self.is_async:
-            print("innnnns7777777")
-            response = asyncio.run(self.service.postAsyncCall(Config.orders, self.header, data))
-        else:  
-            response = self.service.postCall(Config.orders, self.header, data)
-        return response
-    
-    def modify_order(self, data):
-        """
-        Modify order
-        
-        """
-        if self.is_async:
-            print("innnnns7777777")
-            response = asyncio.run(self.service.putAsyncCall(Config.orders, self.header, data))
-        else:   
-            response = self.service.putCall(Config.orders, self.header, data)
-        return response
-     
 
     def minquantity(self):
         if self.is_async:
@@ -351,6 +334,83 @@ class FyersModelv3:
             print("innnnns888888")
             response = self.service.getCall(Config.marketStatus, self.header)
         return response
+
+
+
+    def convert_position(self, data):
+        """
+        Convert position
+
+        """
+        if self.is_async:
+            print("innnnns7777777")
+            response = asyncio.run(self.service.patchAsyncCall(Config.convertPosition, self.header, data))
+        else:
+            response = self.service.putCall(Config.convertPosition, self.header, data)
+        return response
+      
+
+
+    def cancel_order(self, data):
+        """
+        cancel position
+
+        """
+        if self.is_async:
+            print("innnnns7777777")
+            response = asyncio.run(self.service.deleteAsyncCall(Config.orders, self.header, data))
+        else:
+            response = self.service.deleteCall(Config.orders, self.header, data)
+        return response
+    
+    def placeorder(self,data):    
+        async def place_orders(data):
+            """
+            Order Placement
+            """
+            # connect to the WebSocket
+            async with websockets.connect(
+                "wss://socket.fyers.in/trade/v3",
+                extra_headers={"authorization": self.header}
+            ) as websocket:
+                # subscribe to order updates
+                message = json.dumps({"T": "SUB_ORD", "SLIST": ["orders"], "SUB_T": 1})
+                await websocket.send(message)
+                print(f"Sent message: {message}")
+                self.orderResponse ={}
+                response = self.service.postCall(Config.orders, self.header, data=data)
+                print("resp order :",response)
+                while True:
+                    response_ws = await websocket.recv()
+                    response_ws = json.loads(response_ws)
+                    print(response_ws)
+                    if "orders" in response_ws:
+                        print("in---------------",response_ws)
+                        id= response_ws['orders']["id"]
+                        self.orderResponse["s"] = response["s"]
+                        self.orderResponse["code"] = response["code"]
+                        self.orderResponse["id"] = response_ws['orders']["id"]
+                        self.orderResponse["message"] = f"Order Submitted Successfully. Your Order Ref. No. {id}"
+                        return self.orderResponse
+                    else:
+                        pass
+        resp = asyncio.run(place_orders(data))
+        return resp
+
+    
+    def modify_orders(self, data):
+        """
+        Modify order
+        
+        """
+        if self.is_async:
+            print("innnnns7777777")
+            response = asyncio.run(self.service.patchAsyncCall(Config.orders, self.header, data))
+        else:   
+            response = self.service.putCall(Config.orders, self.header, data)
+        return response
+     
+
     
     def exit_positions(self, data=None):
         """
@@ -361,6 +421,59 @@ class FyersModelv3:
         else:
             response = self.service.deleteCall(Config.exitPositions, self.header, data)
         return response
+    
+    def place_gttorder(self, data):
+        """
+        Order Placement
+
+        """
+        if self.is_async:
+            print("innnnns7777777")
+            response = asyncio.run(self.service.postAsyncCall(Config.gttorders, self.header, data))
+        else:  
+            response = self.service.postCall(Config.gttorders, self.header, data)
+        return response
+    
+    def get_gttorders(self, data):
+
+        """
+        Retrieves order details by Id
+
+        """
+
+        if self.is_async:
+            print("innnnns7777777")
+            response = asyncio.run(self.service.getAsyncCall(Config.gttorders, self.header, params=data))
+        else:
+            print("innnnns888888")
+            response = self.service.getCall(Config.gttorders, self.header, data=data)
+        return response
+    
+    def modify_gttorder(self, data):
+            """
+            Modify order
+            
+            """
+            if self.is_async:
+                print("innnnns7777777")
+                response = asyncio.run(self.service.patchAsyncCall(Config.gttorders, self.header, data))
+            else:   
+                response = self.service.putCall(Config.gttorders, self.header, data)
+            return response
+        
+
+    def cancel_gttorder(self, data):
+        """
+        cancel position
+
+        """
+        if self.is_async:
+            print("innnnns7777777")
+            response = asyncio.run(self.service.deleteAsyncCall(Config.gttorders, self.header, data))
+        else:
+            response = self.service.deleteCall(Config.gttorders, self.header, data)
+        return response
+        
 
 
     def generate_data_token(self, data):
@@ -378,20 +491,7 @@ class FyersModelv3:
         return response
 
 
-    def get_orders(self, data):
 
-        """
-        Retrieves order details by Id
-
-        """
-
-        if self.is_async:
-            print("innnnns7777777")
-            response = asyncio.run(self.service.getAsyncCall(Config.multi_orders, self.header, data=data))
-        else:
-            print("innnnns888888")
-            response = self.service.getCall(Config.multi_orders, self.header, data=data)
-        return response
     
     def cancel_basket_orders(self, data):
         """
@@ -426,7 +526,7 @@ class FyersModelv3:
 
         """
         if self.is_async:
-            response = asyncio.run(self.service.putAsyncCall(Config.multi_orders, self.header, data))
+            response = asyncio.run(self.service.patchAsyncCall(Config.multi_orders, self.header, data))
         else:
             response = self.service.putCall(Config.multi_orders, self.header, data)
         return response
