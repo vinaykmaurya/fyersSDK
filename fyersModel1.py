@@ -244,11 +244,11 @@ class FyersModelv3():
         """
 
         if self.is_async:
-            print("innnnns7777777")
+            
 
             response = asyncio.run(self.service.getCall(Config.funds, self.header))
         else:
-            print("innnnns888888")
+            
 
             response = self.service.getCall(Config.funds, self.header, data=data)
         return response
@@ -260,10 +260,10 @@ class FyersModelv3():
         """
 
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.positions, self.header))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.positions, self.header)
         return response
    
@@ -275,10 +275,10 @@ class FyersModelv3():
         """
 
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.holdings, self.header, params=data))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.holdings, self.header, data=data)
         return response
     
@@ -290,10 +290,10 @@ class FyersModelv3():
         """
 
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.multi_orders, self.header, params=data))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.multi_orders, self.header, data=data)
         return response
 
@@ -305,20 +305,20 @@ class FyersModelv3():
 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.orders, self.header, params=data))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.orders, self.header, data=data)
         return response
 
 
     def minquantity(self):
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.minquantity, self.header))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.minquantity, self.header)
         return response
 
@@ -328,10 +328,10 @@ class FyersModelv3():
         
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.marketStatus, self.header))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.marketStatus, self.header)
         return response
 
@@ -343,7 +343,7 @@ class FyersModelv3():
 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.patchAsyncCall(Config.convertPosition, self.header, data))
         else:
             response = self.service.putCall(Config.convertPosition, self.header, data)
@@ -357,7 +357,7 @@ class FyersModelv3():
 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.deleteAsyncCall(Config.orders, self.header, data))
         else:
             response = self.service.deleteCall(Config.orders, self.header, data)
@@ -404,7 +404,7 @@ class FyersModelv3():
         
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.patchAsyncCall(Config.orders, self.header, data))
         else:   
             response = self.service.putCall(Config.orders, self.header, data)
@@ -428,7 +428,7 @@ class FyersModelv3():
 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.postAsyncCall(Config.gttorders, self.header, data))
         else:  
             response = self.service.postCall(Config.gttorders, self.header, data)
@@ -442,10 +442,10 @@ class FyersModelv3():
         """
 
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.gttorders, self.header, params=data))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.gttorders, self.header, data=data)
         return response
     
@@ -455,7 +455,7 @@ class FyersModelv3():
             
             """
             if self.is_async:
-                print("innnnns7777777")
+                
                 response = asyncio.run(self.service.patchAsyncCall(Config.gttorders, self.header, data))
             else:   
                 response = self.service.putCall(Config.gttorders, self.header, data)
@@ -468,7 +468,7 @@ class FyersModelv3():
 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.deleteAsyncCall(Config.gttorders, self.header, data))
         else:
             response = self.service.deleteCall(Config.gttorders, self.header, data)
@@ -537,10 +537,10 @@ class FyersModelv3():
         Retrieves history data 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.history, self.header, data, data_flag=True))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.history, self.header, data, data_flag=True)
         return response
     
@@ -551,10 +551,10 @@ class FyersModelv3():
 
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall( Config.quotes, self.header, data, data_flag=True))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall( Config.quotes, self.header, data, data_flag=True)
         return response
 
@@ -565,10 +565,10 @@ class FyersModelv3():
         
         """
         if self.is_async:
-            print("innnnns7777777")
+            
             response = asyncio.run(self.service.getAsyncCall(Config.market_depth, self.header, data, data_flag=True))
         else:
-            print("innnnns888888")
+            
             response = self.service.getCall(Config.market_depth, self.header, data, data_flag=True)
         return response
     
