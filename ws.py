@@ -21,7 +21,6 @@ class FyersSocket:
         self.logger_setup()
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
-        self.log_path =  os.path.join(self.log_path, 'fyers_socket.log')
 
         self.socket_type = {
                "orderUpdate" : "trades,positions,orders",
@@ -195,7 +194,7 @@ class FyersSocket:
 
 
 client_id = "XC4EOD67IM-100"
-access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODM1MTg1NDksImV4cCI6MTY4MzU5MjIyOSwibmJmIjoxNjgzNTE4NTQ5LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1dIUlZQalBZYnpWODFfM1BJMHNXN1g1TXhDU0R3VjRsb29WZFhudUNGUHlqY2VwdDZwYkdDeFBRN0JYY2ZDdVpOT0xMSGRjN2R3emdFa0JJSXc1QjdHMFNIUWZjbFF4Y2J3OXJjc2ZhQm9PbTVzWT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.7r_NPh7GdNt7iudLwISMQAEhHksowkxuEHlG8-76mzo"
+access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODM1NDIzMzgsImV4cCI6MTY4MzU5MjI1OCwibmJmIjoxNjgzNTQyMzM4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1dORkN6cncta1E1RUZORXotU28xNFFsTjFpTFg1Rm12bWhVVlkyVFMzdkFXZXViekxPd2x6WmNjbUJzcjBqQzhrQThuU1l4MmxSUjl4Q2VmMlZTVXpHLTFCT0JpT0dXS1hEV1F4Z1lJNnA3UVRQUT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.jdoAf1u_fRlQ3gwq120nRs2UtnK7uh_N_znFF0tiaOI"
 
 fyers= FyersSocket(access_token,"OnOrders,OnTrades,OnPositions",None)
 fyers.main()
