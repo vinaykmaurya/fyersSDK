@@ -8,136 +8,6 @@ import asyncio
 
 
 class websocket:
-
-    def parse_position_data( self , msg ):
-        print("Position-----------------")
-
-        response = {}
-        message = msg['positions']
-        positionData = {}
-        keyList = ["buy_avg","buy_qty","buy_val","cf_buy_qty","cf_sell_qty","day_buy_qty","day_sell_qty","fy_token","id","net_avg","net_qty","pl_realized","product_type",
-                   "segment","sell_avg","sell_qty","sell_val","symbol","tran_side"]
-        positionData = {key: message[key] for key in keyList}
-
-        # positionData["buy_avg"] = message['buy_avg']
-        # positionData["buy_qty"]= message['buy_qty']
-        # positionData["buy_val"]= message['buy_val']
-        # positionData["cf_buy_qty"]= message['cf_buy_qty']
-        # positionData["cf_sell_qty"]= message['cf_sell_qty']
-        # positionData["day_buy_qty"]= message['day_buy_qty']
-        # positionData["day_sell_qty"]= message['day_sell_qty']
-        # positionData["fy_token"]= message['fy_token']
-        # positionData["id"]= message['id']
-        # positionData["net_avg"]= message['net_avg']
-        # positionData["net_qty"]= message['net_qty']
-        # positionData["pl_realized"]= message['pl_realized']
-        # positionData["product_type"]= message['product_type']
-
-        # positionData["segment"]= message['segment']
-        # positionData["sell_avg"]= message['sell_avg']
-        # positionData["sell_qty"]= message['sell_qty']
-        # positionData["sell_val"]= message['sell_val']
-
-        # positionData["symbol"]= message['symbol']
-        # positionData["tran_side"]= message['tran_side']
-        positionData["qty_multi"]= message['qty_multiplier']
-        positionData["rbi_ref_rate"]= message['rbirefrate']
-        positionData["sym_desc"]= message['symbol_desc']
-        response["ws_type"] = 1
-        response["s"] = msg["s"]
-        response["d"] = positionData
-        return response
-
-    def parse_trade_data( self, msg ):
-        print("Trades-----------------")
-        message = msg['trades']
-        response = {}
-        keyList = ["id_fill","id","qty_traded","price_traded","traded_val","product_type","client_id","id_exchange","ord_type","tran_side","symbol","time_epoch","fy_token"]
-        tradeData = {key: message[key] for key in keyList}
-        # tradeData['id_fill'] = message['id_fill']
-        # tradeData['id'] = message['id']
-        # tradeData['qty_traded'] = message['qty_traded']
-        # tradeData['price_traded'] = message['price_traded']
-        # tradeData['traded_val'] = message['traded_val']
-        # tradeData['product_type'] = message['product_type']
-        # tradeData['client_id'] = message['client_id']
-        # tradeData['id_exchange'] = message['id_exchange']
-        # tradeData['ord_type'] = message['ord_type']
-        # tradeData['tran_side'] = message['tran_side']
-        # tradeData['symbol'] = message['symbol']
-        # tradeData['time_epoch'] = message['time_epoch']
-        # tradeData['time_oms'] = message['time_oms']
-        # tradeData['fy_token'] = message['fy_token']
-        tradeData['tradeNumber'] = message['id']
-        response["ws_type"] = 1
-        response["s"] = msg["s"]
-        response["d"] = tradeData
-        return response
-
-
-    def parse_orderUpdate_data(self, msg):
-        response = {}   
-        order = msg["orders"]
-        orderData = {}
-        keyMap = {
-            "update_time_epoch_oms":"orderDateTime",
-            # "id":"id",
-            "id":"exchOrdId",
-            "product_type":"productType",
-            "instrument":"instrument",
-            "side":"side",
-            "ord_status":"status",
-            "qty":"qty",
-            "qty_filled":"filledQty",
-            "qty_remaining":"remainingQuantity",
-            "ord_type":"type",
-            "validity":"orderValidity",
-            "offline_flag":"offlineOrder",
-            "status_msg":"message",
-            "symbol":"symbol",
-            "fy_token":"fyToken",
-            "segment":"segment",
-            "dqQtyRem":"dqQtyRem",
-            "price_limit":"limitPrice",
-            "price_stop":"stopPrice",
-            "qty_disc":"discloseQty",
-            "price_traded":"tradedPrice",
-
-        }
-
-        orderData = {keyMap[key]: order.get(key, 0) for key in keyMap.keys()}
-        print("orderData---")
-        # orderData["orderDateTime"] = order["update_time_epoch_oms"]
-        # orderData["exchOrdId"] = order["id"]
-        # orderData["side"] = order["tran_side"]
-        # orderData["instrument"] = order["instrument"]
-        # orderData["productType"] = order["product_type"]
-        # orderData["status"] = order["ord_status"]
-        # orderData["qty"] = order["qty"]
-        # orderData["filledQty"] = order["qty_filled"] if "qty_filled" in order else  0
-        # orderData["remainingQuantity"] = order["qty_remaining"] if "qty_remaining" in order else  0
-        # orderData["type"] = order["ord_type"]
-        # orderData["orderValidity"] = order["validity"]
-        # orderData["offlineOrder"] = order["offline_flag"]
-        # orderData["message"] = order["status_msg"]
-        # orderData["fyToken"] = order["fy_token"]
-        # orderData["symbol"] = order["symbol"]
-        # orderData["segment"] = order["segment"]
-        # orderData["dqQtyRem"] = order["dqQtyRem"] if "dqQtyRem" in order else  0
-        # orderData["limitPrice"] = order["price_limit"] if "price_limit" in order else  0
-        # orderData["stopPrice"] = order["price_stop"] if "price_stop" in order else  0
-        # orderData["discloseQty"] = order["qty_disc"] if "qty_disc" in order else  0
-        # orderData["tradedPrice"] = order["price_traded"] if "price_traded" in order else  0
-        orderData["orderNumStatus"] = order["id"] + ":" + str(order["org_ord_status"])
-        orderData["id"] = order["id"]
-        orderData["slNo"] =int(time.time())
-
-        response["ws_type"] = 1
-        response["s"] = msg["s"]
-        response["d"] = orderData
-        return response
-
-
     def __init__(self, access_token,data_type): 
         self.access_token = access_token
 
@@ -150,7 +20,69 @@ class websocket:
                "OnEdis":"edis"}
         self.data_type = [self.socket_type[(type)] for type in data_type.split(",")]
 
+    def parse_position_data(self, msg):
+        position_data_keys = ["buy_avg", "buy_qty", "buy_val", "cf_buy_qty", "cf_sell_qty", "day_buy_qty", "day_sell_qty", "fy_token", "id", "net_avg", "net_qty", "pl_realized", "product_type", "segment", "sell_avg", "sell_qty", "sell_val", "symbol", "tran_side"]
+        position_data = {key: msg['positions'][key] for key in position_data_keys}
+        position_data.update({
+            "qty_multi": msg['positions']['qty_multiplier'],
+            "rbi_ref_rate": msg['positions']['rbirefrate'],
+            "sym_desc": msg['positions']['symbol_desc']
+        })
 
+        return {
+            "ws_type": 1,
+            "s": msg["s"],
+            "d": position_data,
+        }
+
+    def parse_trade_data(self, msg):
+        trade_data_keys = ["id_fill", "id", "qty_traded", "price_traded", "traded_val", "product_type", "client_id", "id_exchange", "ord_type", "tran_side", "symbol", "time_epoch", "fy_token"]
+        trade_data = dict((key, msg['trades'][key]) for key in trade_data_keys)
+        trade_data['tradeNumber'] = msg['trades']['id']
+
+        return {
+            "ws_type": 1,
+            "s": msg["s"],
+            "d": trade_data,
+        }
+    
+    def parse_orderUpdate_data(self, msg):
+        keyMap = {
+            "update_time_epoch_oms": "orderDateTime",
+            "id": "exchOrdId",
+            "product_type": "productType",
+            "instrument": "instrument",
+            "side": "side",
+            "ord_status": "status",
+            "qty": "qty",
+            "qty_filled": "filledQty",
+            "qty_remaining": "remainingQuantity",
+            "ord_type": "type",
+            "validity": "orderValidity",
+            "offline_flag": "offlineOrder",
+            "status_msg": "message",
+            "symbol": "symbol",
+            "fy_token": "fyToken",
+            "segment": "segment",
+            "dqQtyRem": "dqQtyRem",
+            "price_limit": "limitPrice",
+            "price_stop": "stopPrice",
+            "qty_disc": "discloseQty",
+            "price_traded": "tradedPrice",
+        }
+
+        order = msg["orders"]
+        order_data = {keyMap[key]: order.get(key, 0) for key in keyMap}
+
+        order_data["orderNumStatus"] = order["id"] + ":" + str(order["org_ord_status"])
+        order_data["id"] = order["id"]
+        order_data["slNo"] = int(time.time())
+
+        return {
+            "ws_type": 1,
+            "s": msg["s"],
+            "d": order_data,
+        }
 
 
     async def subscribe(self):
