@@ -3,6 +3,7 @@ import logging
 from logging.config import dictConfig
 import os
 import sys
+import threading
 import time
 import websockets
 import json
@@ -14,10 +15,10 @@ class FyersSocket:
 
     """
 
-    def __init__(self, access_token,data_type,log_path=None): 
+    def __init__(self, access_token,run_background, log_path=None): 
         self.access_token = access_token
         self.log_path = log_path
-        self.background_flag = True
+        self.run_background = run_background
         self.logger_setup()
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
@@ -29,7 +30,7 @@ class FyersSocket:
                "OnPositions":"positions",
                "OnPriceAlert":"pricealerts",
                "OnEdis":"edis"}
-        self.data_type = [self.socket_type[(type)] for type in data_type.split(",")]
+
 
     def parse_position_data(self, msg):
         try:
@@ -111,27 +112,31 @@ class FyersSocket:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
-    async def subscribe(self):
+    async def ScoketConnect(self):
+
         async with websockets.connect(
                 "wss://socket.fyers.in/trade/v3",
                 extra_headers={"authorization": self.access_token}
         ) as websocket:
             message = json.dumps({"T": "SUB_ORD", "SLIST": self.data_type, "SUB_T": 1})
             await websocket.send(message)
-            print(f"Sent message: {message}")
             while True:
-                response = await websocket.recv()
-                # print(f"Received response: {response}")
-                response = json.loads(response)
+                msgRcv = await websocket.recv()
+                response = json.loads(msgRcv)
                 if "orders" in response:
-                    print(f"Received response: {self.parse_orderUpdate_data(response)}")
+                    response = self.parse_orderUpdate_data(response)
                 elif "positions" in response:
-                    print(f"Received response: {self.parse_position_data(response)}")
+                    response = self.parse_position_data(response)
                 elif "trades" in response:
-                    print(f"Received response: {self.parse_trade_data(response)}")
+                    response = self.parse_trade_data(response)
+                else:
+                    pass
+                
+                if self.run_background:
+                    self.logger.debug(f"Response:{response}")
                 else:
                     print(f"Received response: {response}")
-                self.logger.debug(f"Response:{response}")
+                    self.logger.debug(f"Response:{response}")
 
     async def close(self, websocket_task):
         if not websocket_task.done():
@@ -139,9 +144,10 @@ class FyersSocket:
             if not websocket.closed:
                 await websocket.close()
 
-    def main(self):
+    def subscribe(self,data_type):
+        self.data_type = [self.socket_type[(type)] for type in data_type.split(",")]
         loop = asyncio.get_event_loop()
-        websocket_task = loop.create_task(self.subscribe())
+        websocket_task = loop.create_task(self.initFunc())
         try:
             loop.run_until_complete(websocket_task)
         except KeyboardInterrupt:
@@ -194,8 +200,7 @@ class FyersSocket:
 
 
 client_id = "XC4EOD67IM-100"
-access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODM1NDIzMzgsImV4cCI6MTY4MzU5MjI1OCwibmJmIjoxNjgzNTQyMzM4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1dORkN6cncta1E1RUZORXotU28xNFFsTjFpTFg1Rm12bWhVVlkyVFMzdkFXZXViekxPd2x6WmNjbUJzcjBqQzhrQThuU1l4MmxSUjl4Q2VmMlZTVXpHLTFCT0JpT0dXS1hEV1F4Z1lJNnA3UVRQUT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.jdoAf1u_fRlQ3gwq120nRs2UtnK7uh_N_znFF0tiaOI"
+access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODM3ODAzMDAsImV4cCI6MTY4Mzg1MTQwMCwibmJmIjoxNjgzNzgwMzAwLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1hITE1rS1RDMmZDMjdxNUwtNzJJYzdzRWJMLUc4WmFhVUtaeDF0U2xZUWVxVkJxTDQzWDREbER2d1RQa3MzRExaaG5tN2Rtc1RLN2pBSFd3N3RPd285MWk5MXNDbUk2TzhpenY5Wnh0Z2F1U25LZz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.Gmmuw7iiCpLM4is3ixC2itkRv4dVuafcM_q7NQlLJac"
 
-fyers= FyersSocket(access_token,"OnOrders,OnTrades,OnPositions",None)
-fyers.main()
-
+fyers= FyersSocket(access_token,True , None)
+fyers.subscribe("OnOrders,OnTrades,OnPositions")
