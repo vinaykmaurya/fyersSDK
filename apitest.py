@@ -1,8 +1,5 @@
-import asyncio
 from fyerstest.fyersApi import SessionModel, FyersModelv3
-import time
 import webbrowser
-import sys
 def api_call(token, client_id):
     # access_token = "your_access_token_from_generate_access_token_function" ## access_token from the rgenerate_access_token function
     # If you want to make asynchronous API calls then assign the below variable as True and then pass it in the functions, by default its value is False
@@ -10,69 +7,60 @@ def api_call(token, client_id):
     access_token = token
     fyers = FyersModelv3(client_id=client_id,
                          token=access_token, is_async=False)
-    # data = {"symbol":"NSE:BANKNIFTY23MAY30500CE","resolution":"1","date_format":"0","range_from":"1679961600","range_to":"1680652800","cont_flag":"1"}
+    
+    # History 
+    # data = {"symbol":"NSE:NIFTY50-INDEX","resolution":"1","date_format":"0","range_from":"1679961600","range_to":"1680652800","cont_flag":"1"}
     # print(fyers.history(data))
-    # print("")
+
+    # Quotes 
     # print(fyers.quotes({"symbols":"NSE:ONGC-EQ,NSE:SBIN-EQ"}))
-    # print("")
 
+    # Market Depth 
     # print(fyers.depth({"symbol":"NSE:SBIN-EQ","ohlcv_flag":"1"}))
-    # print("")
 
-    print(fyers.tradebook())
-    # print("")
+    #Tradebook
+    # print(fyers.tradebook())
 
+    # Position 
     # print(fyers.positions())
-    print("")
 
+    # Holdings
     # print(fyers.holdings())
-    # print("")
 
+    # funds
     # print(fyers.funds())
-    # print("")
 
+    # OrderBook
     # print(fyers.orderbook())
-    # print("")
 
-    # print(fyers.orderbook({'id':'23050200360880'}))
+
+    # place order data
     # data = {"productType":"INTRADAY","side":1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":2,"validity":"DAY","filledQty":0,"limitPrice":0,"stopPrice":0,"offlineOrder":False}
-    data = {"productType":"INTRADAY","side":-1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":2,"validity":"DAY","filledQty":0,"limitPrice":0,"stopPrice":0,"offlineOrder":False}
+    
+    # Sell order data
+    # data = {"productType":"INTRADAY","side":-1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":2,"validity":"DAY","filledQty":0,"limitPrice":0,"stopPrice":0,"offlineOrder":False}
+
     # print(fyers.place_order(data))
-    print(fyers.place_gttorder(data))
 
-        # data = {"productType":"CNC","side":1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":2,"validity":"DAY","filledQty":0,"limitPrice":0,"stopPrice":0,"offlineOrder":False}
-    # print(fyers.placeorder(data))
-    # print(fyers.modify_orders({"id":"23050800167265", "qty":1,"limitPrice":6.50,"side":1,"type":1})) #modify instead of update
-    # print(fyers.exit_positions({"id":"NSE:IDEA-EQ-INTRADAY"}))
-    multi = [{"productType":"INTRADAY","side":1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":2,"LTP":6.7,"validity":"DAY","filledQty":0,"limitPrice":0,"stopPrice":0,"offlineOrder":False},
-{"productType":"INTRADAY","side":1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":1,"LTP":6.75,"limitPrice":6.45,"validity":"DAY","filledQty":0,"stopPrice":0,"offlineOrder":False}]
+    # print(fyers.place_gttorder(data))
+
+    #place limit order and modify
+    # print(fyers.modify_orders({"id":"23050800167265", "qty":1,"limitPrice":6.50,"side":1,"type":1})) 
+
+    # cancel order which are not placed
     # print(fyers.cancel_orders({'id':'23050800168646'}))
+
+    # exit order 
+    # print(fyers.exit_positions({"id":"NSE:IDEA-EQ-INTRADAY"}))
+
+#     multi = [{"productType":"INTRADAY","side":1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":2,"LTP":6.7,"validity":"DAY","filledQty":0,"limitPrice":0,"stopPrice":0,"offlineOrder":False},
+# {"productType":"INTRADAY","side":1,"symbol":"NSE:IDEA-EQ","qty":1,"disclosedQty":0,"type":1,"LTP":6.75,"limitPrice":6.45,"validity":"DAY","filledQty":0,"stopPrice":0,"offlineOrder":False}]
     # print(fyers.place_basket_orders(data=multi))
-    data = [
-    {"id":"23050400000007", "type":1, "limitPrice": 6.22, "offlineOrder":"True"},
-    {"id":"52009117325", "type":1, "limitPrice": 196, "offlineOrder":"True"}]
+
+    # data = [ {"id":"23050400000007", "type":1, "limitPrice": 6.22, "offlineOrder":"True"},
+    # {"id":"52009117325", "type":1, "limitPrice": 196, "offlineOrder":"True"}]
     # print(fyers.modify_basket_orders(data))   
-    # print(fyers.get_profile())
-
-
-
-
-
-
-
-
-
-
-
-#     print(fyers.place_basket_orders(multi))
-
-
-
-
-
-
-
-
+    
 
 
 
@@ -126,12 +114,12 @@ def main():
     nonce = "baka"
     scope = "openid"
     # getauthToken(client_id, redirect_uri,response_type,scope,state,nonce)
-    auth_code = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkubG9naW4uZnllcnMuaW4iLCJpYXQiOjE2ODM3ODAyNzgsImV4cCI6MTY4MzgxMDI3OCwibmJmIjoxNjgzNzc5Njc4LCJhdWQiOiJbXCJ4OjBcIiwgXCJ4OjFcIiwgXCJ4OjJcIiwgXCJkOjFcIiwgXCJkOjJcIiwgXCJ4OjFcIiwgXCJ4OjBcIl0iLCJzdWIiOiJhdXRoX2NvZGUiLCJkaXNwbGF5X25hbWUiOiJYVjIwOTg2Iiwib21zIjoiSzEiLCJub25jZSI6ImJha2EiLCJhcHBfaWQiOiJYQzRFT0Q2N0lNIiwidXVpZCI6IjdhZWQwYTI4YjM3ZTQ3MDc5NDdjYmNkNDQ2NTk1ZTJjIiwiaXBBZGRyIjoiMC4wLjAuMCIsInNjb3BlIjoib3BlbmlkIn0.7oCFSPr_C4Lj2O8RAnp7y8kzPYT8Z9QtoqmDyejq-uw"
+    auth_code = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkubG9naW4uZnllcnMuaW4iLCJpYXQiOjE2ODUwOTYxODgsImV4cCI6MTY4NTEyNjE4OCwibmJmIjoxNjg1MDk1NTg4LCJhdWQiOiJbXCJ4OjBcIiwgXCJ4OjFcIiwgXCJ4OjJcIiwgXCJkOjFcIiwgXCJkOjJcIiwgXCJ4OjFcIiwgXCJ4OjBcIl0iLCJzdWIiOiJhdXRoX2NvZGUiLCJkaXNwbGF5X25hbWUiOiJYVjIwOTg2Iiwib21zIjoiSzEiLCJub25jZSI6ImJha2EiLCJhcHBfaWQiOiJYQzRFT0Q2N0lNIiwidXVpZCI6ImY5ODhlYmQyMjhhZjRlOGRhNGE0Njc0YjZjNDkxZmQ1IiwiaXBBZGRyIjoiMC4wLjAuMCIsInNjb3BlIjoib3BlbmlkIn0.4RoeQ93di_ch5oHgXM-CmYDAZg_sh5KimOkv_ILELI0"
 
     # print(generate_access_token(auth_code, client_id, redirect_uri,secret_key,grant_type))
 
     # access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
-    access_token ="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODQ3MzgzMjUsImV4cCI6MTY4NDgwMTgwNSwibmJmIjoxNjg0NzM4MzI1LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2F4RVZLSWZPVGVUNkZtYmw4b29wLW9sTU1JaG0waU1IOGIzZmNESlVxNjI1andudnM1LXdTTnA0RTR0TmY1aGxDWWNFUm56QXlnNWVmWFFTUVFiR0M2Y0NaMVVKN3hkc2ptZ3FMZkxOejhsa3FWZz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.8GfqzLmubDCX-FCcjIppkzurYhz4wakgaeeD5Ryk30s"
+    access_token ="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODUwOTYyMTQsImV4cCI6MTY4NTE0NzQ1NCwibmJmIjoxNjg1MDk2MjE0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2NJY1dHTUd1YS00N2VDQTBndDR5Xzc1ck5CSzd6U1BGcml1VFZmeDRtZ0diMm5mU2VWLTZ6UFJxbjlMcHY1dXJyRzdoY3lSR2V0R05qVmlNM1IwUzg4MnVMYVF3LWxpWkVKZ2xMSHlYMk1SeGlwaz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.WQUDWBubsc470JvG1uJkHwGEmJYWVG-FUom4q_bn8og"
     api_call(access_token, client_id)
 
 
