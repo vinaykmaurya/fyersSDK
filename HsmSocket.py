@@ -178,7 +178,7 @@ class FyersHsmSocket():
         buffer_msg.extend(struct.pack('>I', field_value))
         return buffer_msg
     
-    def auth_resp(self,response_msg):
+    def auth_resp(self):
         try:
             offset = 4
             field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
@@ -355,16 +355,12 @@ class FyersHsmSocket():
 
 
     async def close(self):
-        # if hasattr(self, 'websocket') and self.websocket.open:
-        await self.websocket.close()
-        # if not websocket_task.done():
-        #     websocket = websocket_task.result()
-        #     if not websocket.closed:
-        #         await websocket.close()
+        if self.websocket and not self.websocket.closed:
+            await self.websocket.close()
 
-    async def send_ping(self, websocket):
-        await websocket.ping() 
-        asyncio.get_event_loop().call_later(10, lambda: asyncio.ensure_future(self.send_ping(websocket)))
+    async def send_ping(self):
+        await self.websocket.ping()
+        asyncio.get_event_loop().call_later(10, lambda: asyncio.create_task(self.send_ping()))
     
     async def connectWS(self):
         try:
@@ -382,7 +378,7 @@ class FyersHsmSocket():
 
                 message = self.subscription_msg()
                 await websocket.send(message)
-                asyncio.ensure_future(self.send_ping(websocket))
+                asyncio.create_task(self.send_ping())
                 x = 0
                 while True:
                     response = await websocket.recv()
@@ -390,23 +386,21 @@ class FyersHsmSocket():
                     if self.ack_bool:
                         await websocket.send(self.ack_msg)
                         self.ack_bool = False
-        except:
-            print("Error While Connecting")
+        except Exception as e:
+            print("Error While Connecting:", e)
 
 
     def subscribe(self):
         loop = asyncio.get_event_loop()
-        websocket_task = loop.create_task(self.connectWS())
+
         try:
-            loop.run_until_complete(websocket_task)
+            loop.run_until_complete(self.connectWS())
         except KeyboardInterrupt:
-            websocket_task.cancel()
-            try:
-                loop.run_until_complete(websocket_task)
-            except asyncio.CancelledError:
-                pass
-            finally:
-                loop.run_until_complete(self.close())
+            tasks = asyncio.all_tasks(loop=loop)
+
+            for task in tasks:
+                task.cancel()
+            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
         finally:
             loop.close()
 
@@ -414,7 +408,7 @@ class FyersHsmSocket():
 # access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
 # access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
 # scrips =  ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
-# # ,"sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"
+# ,"sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"
 # client = FyersHsmSocket(access_token,scrips)
 
 # # result = asyncio.run(client.main())
