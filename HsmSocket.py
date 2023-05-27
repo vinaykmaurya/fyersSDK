@@ -20,6 +20,14 @@ class FyersHsmSocket():
         self.resp = {}
         self.symDict = {}
         self.ack_bool = False
+        self.ValName = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price"]
+        self.litename = ["ltp","vol_traded_today" , "last_traded_time" ]
+        self.depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
+                    "askPrice1", "askPrice2", "askPrice3", "askPrice4", "askPrice5", 
+                    "bidsize1","bidsize2","bidsize3","bidsize4","bidsize5",
+                    "askSize1","askSize2","askSize3","askSize4","askSize5",
+                    "bidorder1","bidorder2","bidorder3","bidorder4","bidorder5",
+                    "askorder1","askorder2","askorder3","askorder4","askorder5"]
 
     def token_to_byte(self):
         buffer_size = 18 + len(self.access_token) + len(self.Source)
@@ -170,156 +178,180 @@ class FyersHsmSocket():
         buffer_msg.extend(struct.pack('>I', field_value))
         return buffer_msg
     
-    # def auth_check(self):
+    def auth_resp(self,response_msg):
+        try:
+            offset = 4
+            field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
+            offset += 1
+            field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
+            offset += 2
+            string_val = response_msg[offset:offset+field_length].decode('utf-8')
+            offset += field_length
 
-
-
-
-
-    def response_msg(self , data):
-        ValName = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","-","low_price","high_price" ,"-", "-", "lowCircuit" , "upCircuit" ,"open_price", "close_price"]
-        litename = ["ltp","vol_traded_today" , "last_traded_time" ]
-        depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
-                    "askPrice1", "askPrice2", "askPrice3", "askPrice4", "askPrice5", 
-                    "bidsize1","bidsize2","bidsize3","bidsize4","bidsize5",
-                    "askSize1","askSize2","askSize3","askSize4","askSize5",
-                    "bidorder1","bidorder2","bidorder3","bidorder4","bidorder5",
-                    "askorder1","askorder2","askorder3","askorder4","askorder5",]
-        
-
-        datasize, respType = struct.unpack('!HB', data[:3])
-
-        if respType == 1: # Authentication response
-            try:
-                field_id = struct.unpack('!B', data[4:5])[0]
-                field_length = struct.unpack('!H', data[5:7])[0]
-                string_val = data[7:7+field_length].decode('utf-8')
-                if string_val == "K":
-                    print("Authentication done")
-                else:
-                    print("Authentication failed")
-                field_id = struct.unpack('!B', data[7:8])[0]
-                field_length = struct.unpack('!H', data[8:10])[0]
-                self.ack_count = struct.unpack('>I', data[10+field_length:14+field_length])[0]
-                json_obj = data[14+field_length:].decode()
-            except Exception as e:
-                print("Authentication Error")
-                
-        elif respType == 5: # Unsubsciption response
-
-            field_count = struct.unpack('B', data[3:4])[0]
-            print("field count    :",field_count)
-
-            # Read field-Id
-            field_id = struct.unpack('B', data[4:5])[0]
-            print("field_id",field_id)
-
-
-            # Read String field Length
-            field_length = struct.unpack('H', data[4:6])[0]
-            print("field_length0",field_length)
-            # Read & construct string using field-length
-            string_val = data[7:7+field_length].decode('utf-8')
-
-            if string_val == 'K':
-                print("Unsubscription done")
+            if string_val == "K":
+                return "Authentication done"
             else:
-                print("Unsubscription failed")
+                return "Authentication failed"
 
-        elif respType == 12: # Full Mode Data Response
+            # field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
+            # offset += 1
+            # field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
+            # offset += 2
+            # self.ack_count = struct.unpack('>I', response_msg[offset:offset+4])[0]
+            # offset += 4
+            # json_obj = response_msg[offset:].decode()
+        except:
+            return "Error in auth"
 
-            fieldCount = struct.unpack('!B', data[3:4])[0]
+    def unsubscribe_resp(self,response_msg):
+        try:
+            offset = 3
+            field_count = struct.unpack('B', response_msg[offset:offset+1])[0]
+            offset += 1
+            field_id = struct.unpack('B', response_msg[offset:offset+1])[0]
+            offset += 1
+            field_length = struct.unpack('H', response_msg[offset:offset+2])[0]
+            offset += 2
+            string_val = response_msg[offset:offset+field_length].decode('utf-8')
+            offset += field_length
+            if string_val == 'K':
+                return "Unsubscription done"
+            else:
+                return "Unsubscription failed"
+        except:
+            return "Error while Unsubcribe"
+                       
+    def full_mode_resp(self,response_msg):
+        try:    
+            offset = 3
+            fieldCount = struct.unpack('!B', response_msg[offset:offset+1])[0]
+            offset += 1
             if fieldCount >= 1:
-                field_id = struct.unpack('!B', data[4:5])[0]
-                field_length = struct.unpack('!H', data[5:7])[0]
-                string_val = data[7:7+field_length].decode('utf-8')
+                field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
+                offset += 1
+
+                field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
+                offset += 2
+
+                string_val = response_msg[offset:offset+field_length].decode('utf-8')
+                offset += field_length
+
                 if string_val == "K":
-                    print("Full mode onn")
+                    print("Full mode on")
                 else:
                     print("error in full mode connection")
-        elif respType == 6: # Data Feed Response
+            else:
+                print("error in full mode connection")
+        except:
+            return "Error"
+    def datafeed_resp(self,response_msg):
+        try:
             updateCount = 0
-
             if self.ack_count > 0:
                 updateCount += 1
-                msgNum = struct.unpack('>I', data[3:7])[0]
+                msgNum = struct.unpack('>I', response_msg[3:7])[0]
                 if updateCount == self.ack_count:
                     self.ack_bool = True
                     self.ack_msg = self.ackowledgement_msg(msgNum)
                     updateCount = 0
-            scripCount = struct.unpack('!H', data[7:9])[0]
+            scripCount = struct.unpack('!H', response_msg[7:9])[0]
             offset = 9
             for _ in range(scripCount):
-                dataType = struct.unpack('B', data[offset:offset+1])[0]
+                dataType = struct.unpack('B', response_msg[offset:offset+1])[0]
                 if dataType == 83: 
                     self.output = {}
                     offset += 1
-                    topicId = struct.unpack('H', data[offset:offset+2])[0]
+                    topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
                     offset += 2
-                    topicNameLength = struct.unpack('B', data[offset:offset+1])[0]
+                    topicNameLength = struct.unpack('B', response_msg[offset:offset+1])[0]
                     offset += 1
-                    topicName = data[offset:offset+topicNameLength].decode('utf-8')
+                    topicName = response_msg[offset:offset+topicNameLength].decode('utf-8')
                     offset += topicNameLength
                     # Maintaining dict - topicId : topicName
                     self.symDict[topicId] = topicName
-                    fieldCount = struct.unpack('B', data[offset:offset+1])[0]
+                    fieldCount = struct.unpack('B', response_msg[offset:offset+1])[0]
                     offset += 1
                     for index in range(fieldCount):
-                        value = struct.unpack('>I', data[offset:offset+4])[0]
+                        value = struct.unpack('>I', response_msg[offset:offset+4])[0]
                         offset += 4
                         if fieldCount < 23:
-                            self.output[ValName[index]] = value
+                            if self.ValName[index] != '-':
+                                self.output[self.ValName[index]] = value
                         else:
-                            self.output[depthvalue[index]] = value                    
-                    stringFieldLength = struct.unpack('H', data[offset:offset+2])[0]
+                            self.output[self.depthvalue[index]] = value                    
+                    stringFieldLength = struct.unpack('H', response_msg[offset:offset+2])[0]
                     offset += 2
-                    multiplier = struct.unpack('H', data[offset:offset+2])[0]
+                    multiplier = struct.unpack('H', response_msg[offset:offset+2])[0]
                     self.output["multiplier"] = multiplier
                     offset += 2
-                    precision = struct.unpack('B', data[offset:offset+1])[0]
+                    precision = struct.unpack('B', response_msg[offset:offset+1])[0]
                     self.output["precision"] = precision
                     offset += 1
                     val = ["exch", "exch_token","symbol"]
                     for i in range(3):
-                        stringLength = struct.unpack('B', data[offset:offset+1])[0]
+                        stringLength = struct.unpack('B', response_msg[offset:offset+1])[0]
                         offset += 1
-                        stringData = data[offset:offset+stringLength].decode('utf-8')
+                        stringData = response_msg[offset:offset+stringLength].decode('utf-8')
                         self.output[val[i]] = stringData
                         offset += stringLength
                     
                     self.resp[self.symDict[topicId]] = self.output
-                    print("Response : ", self.output)
+                    print(self.resp[self.symDict[topicId]])
                     
                 elif dataType == 85:
                     offset += 1
-                    topicId = struct.unpack('H', data[offset:offset+2])[0]
+                    topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
                     offset += 2
-                    fieldCount = struct.unpack('B', data[offset:offset+1])[0]
+                    fieldCount = struct.unpack('B', response_msg[offset:offset+1])[0]
                     offset += 1
                     for index in range(fieldCount):
-                        value = struct.unpack('>I', data[offset:offset+4])[0]
+                        value = struct.unpack('>I', response_msg[offset:offset+4])[0]
                         offset += 4
                         if fieldCount < 23:
-                            self.resp[self.symDict[topicId]][ValName[index]] = value
+                            if self.ValName[index] != '-':
+
+                                if index in [0,6,7,11,13,14,17,18,19,20]:
+                                    self.resp[self.symDict[topicId]][self.ValName[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
+                                else:
+                                    self.resp[self.symDict[topicId]][self.ValName[index]] = value
                         else:
-                            self.resp[self.symDict[topicId]][depthvalue[index]] = value
-                    print("finalresponse :",self.symDict[topicId], "---" ,self.resp[self.symDict[topicId]])
+                            if 0 <= index <= 9:
+                                self.resp[self.symDict[topicId]][self.depthvalue[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
+                            else:
+                                self.resp[self.symDict[topicId]][self.depthvalue[index]] = value
+                            
+                    print(self.resp[self.symDict[topicId]])
                 elif dataType == 76:
                     offset += 1
-                    topicId = struct.unpack('H', data[offset:offset+2])[0]
+                    topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
                     offset += 2
                     print("topicID :",topicId)
                     self.literesp[self.symDict[topicId]] = {}
 
                     for index in range(3):
-                        value = struct.unpack('>I', data[offset:offset+4])[0]
+                        value = struct.unpack('>I', response_msg[offset:offset+4])[0]
                         offset += 4
-                        self.literesp[self.symDict[topicId]][litename[index]] = value
+                        self.literesp[self.symDict[topicId]][self.litename[index]] = value
                     self.literesp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
                         # print(f"Field {index+1}: {value}")
                     print(self.literesp[self.symDict[topicId]])
                 else:
                     pass
+        except:
+            return "Error in Data"
+    def response_msg(self , response_msg):
+        try:
+            datasize, respType = struct.unpack('!HB', response_msg[:3])
+            if respType == 1: # Authentication response
+                print(self.auth_resp(response_msg))
+            elif respType == 5: # Unsubsciption response
+                print(self.unsubscribe_resp(response_msg))
+            elif respType == 12: # Full Mode Data Response
+                print(self.full_mode_resp(response_msg))
+            elif respType == 6: # Data Feed Response
+                print(self.datafeed_resp(response_msg))
+        except:
+            print('error')
 
 
     async def close(self):
@@ -355,7 +387,6 @@ class FyersHsmSocket():
                 while True:
                     response = await websocket.recv()
                     self.response_msg(response)
-
                     if self.ack_bool:
                         await websocket.send(self.ack_msg)
                         self.ack_bool = False
@@ -375,16 +406,15 @@ class FyersHsmSocket():
             except asyncio.CancelledError:
                 pass
             finally:
-                loop.run_until_complete(self.close(websocket_task))
+                loop.run_until_complete(self.close())
         finally:
             loop.close()
 
 
 # access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
-# access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2xvZ2luLmZ5ZXJzLmluIiwiaWF0IjoxNjg0NzMwNDA2LCJleHAiOjE2ODQ4MDE4MDYsIm5iZiI6MTY4NDczMDQwNiwiYXVkIjpbIng6MCJdLCJzdWIiOiJhY2Nlc3NfdG9rZW4iLCJhdF9oYXNoIjoiZ0FBQUFBQmthdkltdGMtQUFueTVnR2liMGRtVHdXeko5TmFuTUtEVlBzYTVHRnRFaUdCczN1OTh2ZE01UFlZanNOc3Bfd2szbEpYcUU5cXJTQVQ2eXJDZTh0R0pBcnlFcFJtaWhaSVMtSVBPZmY1VkVlX3M3U0U9IiwiZGlzcGxheV9uYW1lIjoiVklOQVkgS1VNQVIgTUFVUllBIiwiZnlfaWQiOiJYVjIwOTg2IiwiYXBwVHlwZSI6IiIsIm9tcyI6IksxIiwicG9hX2ZsYWciOiJOIiwiaHNtX2tleSI6IjNmZDVjYWVmZWI2NjI5MzFjNjU2MGNmNTk5MWI1NWUzMjdmMzNkZGY4Y2EwYjJhMWIwZWQ3MTY1In0.8I11EvKNf-Z4dHn8nd6gSM0AhN0D4zf0-e59GWaEP_8"
-# access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODQ3MzgzMjUsImV4cCI6MTY4NDgwMTgwNSwibmJmIjoxNjg0NzM4MzI1LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2F4RVZLSWZPVGVUNkZtYmw4b29wLW9sTU1JaG0waU1IOGIzZmNESlVxNjI1andudnM1LXdTTnA0RTR0TmY1aGxDWWNFUm56QXlnNWVmWFFTUVFiR0M2Y0NaMVVKN3hkc2ptZ3FMZkxOejhsa3FWZz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.8GfqzLmubDCX-FCcjIppkzurYhz4wakgaeeD5Ryk30s"
 # access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
 # scrips =  ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
+# # ,"sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"
 # client = FyersHsmSocket(access_token,scrips)
 
 # # result = asyncio.run(client.main())
