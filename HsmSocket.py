@@ -20,7 +20,8 @@ class FyersHsmSocket():
         self.resp = {}
         self.symDict = {}
         self.ack_bool = False
-        self.ValName = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price"]
+        self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price"]
+        self.indexVal = ['ltp', 'close_price', 'ExFeedTime', 'high_price', 'low_price', 'open_price']
         self.litename = ["ltp","vol_traded_today" , "last_traded_time" ]
         self.depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
                     "askPrice1", "askPrice2", "askPrice3", "askPrice4", "askPrice5", 
@@ -178,7 +179,7 @@ class FyersHsmSocket():
         buffer_msg.extend(struct.pack('>I', field_value))
         return buffer_msg
     
-    def auth_resp(self):
+    def auth_resp(self,response_msg):
         try:
             offset = 4
             field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
@@ -189,17 +190,17 @@ class FyersHsmSocket():
             offset += field_length
 
             if string_val == "K":
-                return "Authentication done"
+                print("Authentication done")
             else:
-                return "Authentication failed"
+                print("Authentication failed")
 
-            # field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
-            # offset += 1
-            # field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
-            # offset += 2
-            # self.ack_count = struct.unpack('>I', response_msg[offset:offset+4])[0]
-            # offset += 4
-            # json_obj = response_msg[offset:].decode()
+            field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
+            offset += 1
+            field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
+            offset += 2
+            self.ack_count = struct.unpack('>I', response_msg[offset:offset+4])[0]
+            offset += 4
+            json_obj = response_msg[offset:].decode()
         except:
             return "Error in auth"
 
@@ -255,9 +256,13 @@ class FyersHsmSocket():
                     self.ack_msg = self.ackowledgement_msg(msgNum)
                     updateCount = 0
             scripCount = struct.unpack('!H', response_msg[7:9])[0]
+            print('----------------------')               
+
             offset = 9
             for _ in range(scripCount):
                 dataType = struct.unpack('B', response_msg[offset:offset+1])[0]
+                print('--1--------------------')               
+
                 if dataType == 83: 
                     self.output = {}
                     offset += 1
@@ -267,6 +272,8 @@ class FyersHsmSocket():
                     offset += 1
                     topicName = response_msg[offset:offset+topicNameLength].decode('utf-8')
                     offset += topicNameLength
+                    print('----------------------')               
+
                     # Maintaining dict - topicId : topicName
                     self.symDict[topicId] = topicName
                     fieldCount = struct.unpack('B', response_msg[offset:offset+1])[0]
@@ -274,11 +281,13 @@ class FyersHsmSocket():
                     for index in range(fieldCount):
                         value = struct.unpack('>I', response_msg[offset:offset+4])[0]
                         offset += 4
-                        if fieldCount < 23:
-                            if self.ValName[index] != '-':
-                                self.output[self.ValName[index]] = value
+                        if fieldCount == 21:
+                            self.output[self.dataVal[index]] = value
+                        elif fieldCount == 6:
+                            self.output[self.indexVal[index]] = value
                         else:
-                            self.output[self.depthvalue[index]] = value                    
+                            self.output[self.depthvalue[index]] = value     
+                    print('----------------------')               
                     stringFieldLength = struct.unpack('H', response_msg[offset:offset+2])[0]
                     offset += 2
                     multiplier = struct.unpack('H', response_msg[offset:offset+2])[0]
@@ -307,20 +316,22 @@ class FyersHsmSocket():
                     for index in range(fieldCount):
                         value = struct.unpack('>I', response_msg[offset:offset+4])[0]
                         offset += 4
-                        if fieldCount < 23:
-                            if self.ValName[index] != '-':
+                        if fieldCount == 21:
 
-                                if index in [0,6,7,11,13,14,17,18,19,20]:
-                                    self.resp[self.symDict[topicId]][self.ValName[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
-                                else:
-                                    self.resp[self.symDict[topicId]][self.ValName[index]] = value
+                            if index in [0,6,7,11,13,14,17,18,19,20]:
+                                self.resp[self.symDict[topicId]][self.dataVal[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
+                            else:
+                                self.resp[self.symDict[topicId]][self.dataVal[index]] = value
+                        elif fieldCount == 6:
+                            self.output[self.indexVal[index]] = value
                         else:
                             if 0 <= index <= 9:
                                 self.resp[self.symDict[topicId]][self.depthvalue[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
                             else:
                                 self.resp[self.symDict[topicId]][self.depthvalue[index]] = value
                             
-                    print(self.resp[self.symDict[topicId]])
+                    print(self.symDict[topicId] ,"-\n",self.resp[self.symDict[topicId]])
+                    print('\n',self.symDict)
                 elif dataType == 76:
                     offset += 1
                     topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
@@ -334,7 +345,7 @@ class FyersHsmSocket():
                         self.literesp[self.symDict[topicId]][self.litename[index]] = value
                     self.literesp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
                         # print(f"Field {index+1}: {value}")
-                    print(self.literesp[self.symDict[topicId]])
+                    print(self.symDict[topicId] ,"-\n", self.literesp[self.symDict[topicId]])
                 else:
                     pass
         except:
@@ -382,7 +393,9 @@ class FyersHsmSocket():
                 x = 0
                 while True:
                     response = await websocket.recv()
+                    # print(response)
                     self.response_msg(response)
+
                     if self.ack_bool:
                         await websocket.send(self.ack_msg)
                         self.ack_bool = False
@@ -405,28 +418,15 @@ class FyersHsmSocket():
             loop.close()
 
 
-# access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
+access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
 # access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
-# scrips =  ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
-# ,"sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"
-# client = FyersHsmSocket(access_token,scrips)
+scrips =  ['sf|mcx_fo|251196','if|nse_cm|NIFTY LARGEMID250', 'if|nse_cm|NIFTY LARGEMID250']
+# 'sf|nse_fo|50128',"sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"
+# scrips = ['if|nse_cm|26017']
+client = FyersHsmSocket(access_token,scrips)
 
-# # result = asyncio.run(client.main())
-# client.subscribe()
-# asyncio.sleep(5)
-# asyncio.run(client.close())
-
-# async def main():
-#     access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
-#     scrips =  ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
-#     client = FyersHsmSocket(access_token,scrips)
-#     await client.subscribe()
-#     await asyncio.sleep(5)
-#     await client.close()
-# asyncio.run(main())
-
-
-
+# result = asyncio.run(client.main())
+client.subscribe()
 
                 # x += 1
                 # if x == 10:
