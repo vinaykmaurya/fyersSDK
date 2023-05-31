@@ -20,6 +20,7 @@ class FyersSocket:
         self.log_path = log_path
         self.run_background = run_background
         self.logger_setup()
+        self.websocket_task = None
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
 
@@ -112,8 +113,8 @@ class FyersSocket:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
-    async def ScoketConnect(self):
-
+    async def ScoketConnect(self,data_type):
+        self.data_type = [self.socket_type[(type)] for type in data_type.split(",")]
         async with websockets.connect(
                 "wss://socket.fyers.in/trade/v3",
                 extra_headers={"authorization": self.access_token}
@@ -137,17 +138,21 @@ class FyersSocket:
                 else:
                     print(f"Received response: {response}")
                     self.logger.debug(f"Response:{response}")
-
-    async def close(self, websocket_task):
-        if not websocket_task.done():
-            websocket = websocket_task.result()
+    
+    # async def close(self):
+    #     if self.websocket_task and not self.websocket_task.closed:
+    #         await self.websocket_task.close()
+    async def close(self):
+        if not self.websocket_task.done():
+            websocket = self.websocket_task.result()
             if not websocket.closed:
                 await websocket.close()
 
-    def subscribe(self,data_type):
+    async def subscribe(self,data_type):
         self.data_type = [self.socket_type[(type)] for type in data_type.split(",")]
         loop = asyncio.get_event_loop()
-        websocket_task = loop.create_task(self.ScoketConnect())
+        self.websocket_task = loop.create_task(self.ScoketConnect())
+        websocket_task= self.websocket_task
         try:
             loop.run_until_complete(websocket_task)
         except KeyboardInterrupt:
@@ -202,9 +207,16 @@ class FyersSocket:
         dictConfig(LOGGING)
         self.logger = logging.getLogger('fyers_socket')
 
+async def main():
+    client_id = "XC4EOD67IM-100"
+    access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU1MDYzMTIsImV4cCI6MTY4NTU3OTQ1MiwibmJmIjoxNjg1NTA2MzEyLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2Rza0lkcmpGWldPVHBkLUxseTU2dUd2N2NNd3MxY0ZtOWcwMi1wNUgtYmZhbUV6NmQzWWhxZlYzdlhLWUhCVUdTYUtlRlAzcHVJckFDQ3FJLXpjWUVhRDdVQ2ZQZnNQVjdZb0duY0Z3amg4blhhWT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.0er3yuQaHJk79nYOUHL1i-Ms8FHva8mBKF3lBQYuoBo"
 
-# client_id = "XC4EOD67IM-100"
-# access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODQ3MzgzMjUsImV4cCI6MTY4NDgwMTgwNSwibmJmIjoxNjg0NzM4MzI1LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2F4RVZLSWZPVGVUNkZtYmw4b29wLW9sTU1JaG0waU1IOGIzZmNESlVxNjI1andudnM1LXdTTnA0RTR0TmY1aGxDWWNFUm56QXlnNWVmWFFTUVFiR0M2Y0NaMVVKN3hkc2ptZ3FMZkxOejhsa3FWZz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.8GfqzLmubDCX-FCcjIppkzurYhz4wakgaeeD5Ryk30s"
+    fyers= FyersSocket(access_token,False , None)
+    connect_task = asyncio.create_task(fyers.ScoketConnect("OnOrders,OnTrades,OnPositions"))
+    await asyncio.sleep(10)
+    # await fyers.close()
 
-# fyers= FyersSocket(access_token,False , None)
-# fyers.subscribe("OnOrders,OnTrades,OnPositions")
+    await connect_task
+
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main())

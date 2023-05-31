@@ -1,3 +1,5 @@
+import asyncio
+import time
 import requests
 import urllib3
 # from HsmSocket import FyersHsmSocket
@@ -5,11 +7,11 @@ import urllib3
 from fyerstest.fyersApi import SessionModel, FyersModelv3
 from HsmSocket import FyersHsmSocket
 
-def symbol_name(symbols):
+async def symbol_name(symbols):
     symbols =','.join(symbols)
     datatype = 'symbolUpdate'
     client_id = ""
-    access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU0MjM1OTYsImV4cCI6MTY4NTQ5MzAxNiwibmJmIjoxNjg1NDIzNTk2LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2RZWHNIQ3Z4dVpDNHB5ZjBtbkx1OHlZQkRiNFFxNzVUazdDbjRRSFRCeTZJb1BDZDE5SFJoZ0VHbVVFX0hVbDV3WDdFa21vbm5MMlRqVEczZFI2UWpxRDA5X2NNVHFLTm1wODR2U2o3ZG1tRENOYz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.BQ2qqE5QHeqKAQEiuBBwIQkRT9rXZBvGrAaWlFKEQLA'
+    access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU1MDYzMTIsImV4cCI6MTY4NTU3OTQ1MiwibmJmIjoxNjg1NTA2MzEyLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2Rza0lkcmpGWldPVHBkLUxseTU2dUd2N2NNd3MxY0ZtOWcwMi1wNUgtYmZhbUV6NmQzWWhxZlYzdlhLWUhCVUdTYUtlRlAzcHVJckFDQ3FJLXpjWUVhRDdVQ2ZQZnNQVjdZb0duY0Z3amg4blhhWT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.0er3yuQaHJk79nYOUHL1i-Ms8FHva8mBKF3lBQYuoBo'
     fyers = FyersModelv3(token=access_token, is_async=False)
     quotesData = fyers.quotes({"symbols": symbols})
     datadict = {}
@@ -106,7 +108,7 @@ def symbol_name(symbols):
                 if len(data) > 1 and data[1] == "INDEX":
                     values['exToken'] = index_dict[values['symbol']]
                     values['subSymbol'] = 'if'+ '|'+values['segment'] + '|'+values['exToken']
-                elif datatype != 'depthUpdate':
+                elif datatype == 'depthUpdate':
                     values['exToken'] = values['fyToken'][10:]
                     values['subSymbol'] = 'dp'+ '|'+values['segment'] + '|'+values['exToken']
 
@@ -121,12 +123,15 @@ def symbol_name(symbols):
         print(datadict,'---------------')
         access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
         client = FyersHsmSocket(access_token,datadict)
-        client.subscribe()
-
+        # client.subscribe()
+        await client.connectWS()
+        # await asyncio.sleep(10)
+        await client.close()
+     
     else:
         print(quotesData)
         return quotesData
     # print(datadict)
     # data = {'symbol' : 'NSE:NIFTY50-INDEX'}
-symbols = ['NSE:NIFTYMIDCAP50-INDEX','NSE:NIFTY50-INDEX','MCX:CRUDEOIL23JUNFUT']
-symbol_name(symbols)
+symbols = ['NSE:NIFTYMIDCAP50-INDEX','NSE:NIFTY50-INDEX', 'NSE:IDEA-EQ','NSE:NIFTYBANK-INDEX','NSE:ADANIENT-EQ','NSE:ACC-EQ',]
+asyncio.run(symbol_name(symbols))

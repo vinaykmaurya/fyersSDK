@@ -19,7 +19,7 @@ class FyersHsmSocket():
         self.channelNum = 1
         self.symbol_token = symbol_token
         self.channels = [1,2,3,4,5]
-        self.scrips =symbol_token #list(self.symbol_token.keys())
+        self.scrips = list(self.symbol_token.keys())
 
         self.ackCount = None
         self.updateCount = 0
@@ -36,7 +36,7 @@ class FyersHsmSocket():
         self.ack_bool = False
         self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" 
                         , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price",'symbol']
-        self.indexVal = ['ltp', 'close_price', 'ExFeedTime', 'high_price', 'low_price', 'open_price']
+        self.indexVal = ['ltp', 'close_price', 'ExFeedTime', 'high_price', 'low_price', 'open_price', 'symbol']
         self.litename = ["ltp","vol_traded_today" , "last_traded_time" ]
         self.depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
                         "askPrice1", "askPrice2", "askPrice3", "askPrice4", "askPrice5", 
@@ -292,7 +292,7 @@ class FyersHsmSocket():
             return 
     def response_output(self,data):
         dataResp = data
-        print("-------precision-------",dataResp['precision'] )
+        # print("-------precision-------",dataResp )
         response = {}
         if 'bidPrice1' in dataResp:
 
@@ -301,7 +301,7 @@ class FyersHsmSocket():
                     response[val] = dataResp[val] / (10 ** dataResp['precision']) 
                 else:
                     response[val] = dataResp[val]
-        elif 'ltp' in dataResp:
+        elif 'askSize' in dataResp:
             for i , val in enumerate(self.dataVal):
                 if val in dataResp and i in [0,6,7,11,13,14,17,18,19,20]:
                     response[val] = dataResp[val] / (10 ** dataResp['precision']) 
@@ -314,7 +314,21 @@ class FyersHsmSocket():
                 response.pop('Yhigh')
             if 'Ylow' in response:
                 response.pop('Ylow')
+        else:
+            for i , val in enumerate(self.indexVal):
+                if val in dataResp and i in [0]:
+                    response[val] = dataResp[val] / (10 ** dataResp['precision']) 
+                else:
+                    response[val] = dataResp[val]
         
+            # if 'OI' in response:
+            #     response.pop('OI')
+            # if 'Yhigh' in response:
+            #     response.pop('Yhigh')
+            # if 'Ylow' in response:
+            #     response.pop('Ylow')
+            # response = dataResp
+        print("")
         print(response)
 
     def datafeed_resp(self,data):
@@ -380,7 +394,7 @@ class FyersHsmSocket():
                         stringData = data[offset:offset+stringLength].decode('utf-8')
                         self.output[val[i]] = stringData
                         offset += stringLength
-                    # self.output['symbol'] = self.symbol_token[self.symDict[topicId]]
+                    self.output['symbol'] = self.symbol_token[self.symDict[topicId]]
                     self.resp[self.symDict[topicId]] = self.output
 
                     self.response_output(self.resp[self.symDict[topicId]])
@@ -413,17 +427,17 @@ class FyersHsmSocket():
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
 
-                    self.literesp[self.symDict[topicId]] = {}
+                    # self.literesp[self.symDict[topicId]] = {}
 
                     for index in range(3):
                         value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
                         if index == 0:
-                            self.resp[self.symDict[topicId]][self.litename[index]] = value / 10 ** self.resp[self.symDict[topicId]]['precision']
+                            self.literesp[self.symDict[topicId]][self.litename[index]] = value / 10 ** self.resp[self.symDict[topicId]]['precision']
 
-                    self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
+                    self.literesp[self.symDict[topicId]]['symbol']  = self.literesp[self.symDict[topicId]]['symbol']
 
-                    self.response_output(self.resp[self.symDict[topicId]])
+                    self.response_output(self.literesp[self.symDict[topicId]])
                 else:
                     pass
                 
@@ -456,10 +470,12 @@ class FyersHsmSocket():
             self.datafeed_resp(data)
          
     async def close(self):
+        print(f"WebSocket object: {self.websocket}")
+        print(f"WebSocket closed state: {self.websocket.closed}")
 
         if self.websocket and not self.websocket.closed:
             await self.websocket.close()
-
+            
     async def send_ping(self):
         await self.websocket.ping()
         asyncio.get_event_loop().call_later(10, lambda: asyncio.create_task(self.send_ping()))
@@ -497,7 +513,7 @@ class FyersHsmSocket():
             logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
 
-    def subscribe(self):
+    async def subscribe(self):
         loop = asyncio.get_event_loop()
 
         try:
@@ -553,7 +569,7 @@ class FyersHsmSocket():
         dictConfig(LOGGING)
         self.logger = logging.getLogger('fyers_socket')
 
-datadict = ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
-access_token ="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
-client = FyersHsmSocket(access_token,datadict)
-client.subscribe()
+# datadict = ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
+# access_token ="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
+# client = FyersHsmSocket(access_token,datadict)
+# client.subscribe()
