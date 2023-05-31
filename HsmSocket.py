@@ -3,19 +3,24 @@ import logging
 from logging.config import dictConfig
 import os
 import struct
-import websockets
+import base64
+
+import sys
+import websockets 
 
 
 class FyersHsmSocket():
 
     def __init__(self,access_token,symbol_token, log_path = None , litemode = False):
         self.url = ""
-        self.access_token = access_token
+        self.access_token = str(access_token)
         self.log_path = log_path
         self.Source = "PythonSDK-1.0.0"
         self.channelNum = 1
         self.symbol_token = symbol_token
         self.channels = [1,2,3,4,5]
+        self.scrips =symbol_token #list(self.symbol_token.keys())
+
         self.ackCount = None
         self.updateCount = 0
         self.lite = litemode
@@ -24,11 +29,13 @@ class FyersHsmSocket():
         self.logger_setup()
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
+        self.logger.error('No error',)
         self.resp = {}
         self.symDict = {}
+        self.extra_data = {}
         self.ack_bool = False
         self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" 
-                        , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price"]
+                        , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price",'symbol']
         self.indexVal = ['ltp', 'close_price', 'ExFeedTime', 'high_price', 'low_price', 'open_price']
         self.litename = ["ltp","vol_traded_today" , "last_traded_time" ]
         self.depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
@@ -36,7 +43,7 @@ class FyersHsmSocket():
                         "bidsize1","bidsize2","bidsize3","bidsize4","bidsize5",
                         "askSize1","askSize2","askSize3","askSize4","askSize5",
                         "bidorder1","bidorder2","bidorder3","bidorder4","bidorder5",
-                        "askorder1","askorder2","askorder3","askorder4","askorder5"]
+                        "askorder1","askorder2","askorder3","askorder4","askorder5",'symbol']
 
     def token_to_byte(self):
         try:
@@ -77,6 +84,7 @@ class FyersHsmSocket():
             struct.pack_into(f"!{field4_size}s", byte_buffer, 18+field1_size, self.Source.encode())
 
             return byte_buffer
+        
         except Exception as e:
             self.logger.error("Error While packing Token msg", e)
 
@@ -121,12 +129,12 @@ class FyersHsmSocket():
         
     def subscription_msg(self):
         try:
-            self.scrips = self.symbol_token.keys()
+            # self.scrips = self.symbol_token.keys()
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
             self.scripsData.append(len(self.scrips) & 0xFF)
             for scrip in self.scrips:
-                scripBytes = scrip.encode("ascii")
+                scripBytes = str(scrip).encode("ascii")
                 self.scripsData.append(len(scripBytes))
                 self.scripsData.extend(scripBytes)
 
@@ -149,6 +157,7 @@ class FyersHsmSocket():
             buffer_msg.append(self.channelNum)
 
             return buffer_msg
+        
         except Exception as e:
             self.logger.error("Error While packing Subscription msg", e)
             return 
@@ -160,7 +169,7 @@ class FyersHsmSocket():
             scripsData.append(len(scrips) >> 8 & 0xFF)
             scripsData.append(len(scrips) & 0xFF)
             for scrip in scrips:
-                scripBytes = scrip.encode("ascii")
+                scripBytes = str(scrip).encode("ascii")
                 scripsData.append(len(scripBytes))
                 scripsData.extend(scripBytes)
 
@@ -281,150 +290,171 @@ class FyersHsmSocket():
         except Exception as e:
             self.logger.error("Error While Unpacking Full Mode msg", e)
             return 
+    def response_output(self,data):
+        dataResp = data
+        print("-------precision-------",dataResp['precision'] )
+        response = {}
+        if 'bidPrice1' in dataResp:
+
+            for i , val in enumerate(self.depthvalue):
+                if val in dataResp and i < 10:
+                    response[val] = dataResp[val] / (10 ** dataResp['precision']) 
+                else:
+                    response[val] = dataResp[val]
+        elif 'ltp' in dataResp:
+            for i , val in enumerate(self.dataVal):
+                if val in dataResp and i in [0,6,7,11,13,14,17,18,19,20]:
+                    response[val] = dataResp[val] / (10 ** dataResp['precision']) 
+                else:
+                    response[val] = dataResp[val]
+
+            if 'OI' in response:
+                response.pop('OI')
+            if 'Yhigh' in response:
+                response.pop('Yhigh')
+            if 'Ylow' in response:
+                response.pop('Ylow')
         
-    def datafeed_resp(self,response_msg):
+        print(response)
+
+    def datafeed_resp(self,data):
         try:
             updateCount = 0
             if self.ack_count > 0:
                 updateCount += 1
-                msgNum = struct.unpack('>I', response_msg[3:7])[0]
+                msgNum = struct.unpack('>I', data[3:7])[0]
                 if updateCount == self.ack_count:
                     self.ack_bool = True
                     self.ack_msg = self.ackowledgement_msg(msgNum)
                     updateCount = 0
-            scripCount = struct.unpack('!H', response_msg[7:9])[0]
+            scripCount = struct.unpack('!H', data[7:9])[0]
 
             offset = 9
             for _ in range(scripCount):
-                dataType = struct.unpack('B', response_msg[offset:offset+1])[0]
+                dataType = struct.unpack('B', data[offset:offset+1])[0]
                 if dataType == 83: #Snapshot datafeed
                     self.output = {} 
-
+                    # self.extra_data = {}
                     offset += 1
-                    topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
+                    topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
-                    topicNameLength = struct.unpack('B', response_msg[offset:offset+1])[0]
+                    topicNameLength = struct.unpack('B', data[offset:offset+1])[0]
                     offset += 1
 
-                    topicName = response_msg[offset:offset+topicNameLength].decode('utf-8')
+                    topicName = data[offset:offset+topicNameLength].decode('utf-8')
                     offset += topicNameLength
 
                     # Maintaining dict - topicId : topicName
                     self.symDict[topicId] = topicName
-
                     # fieldCount - 21 in scrips , 25 in depth , 6 in index
-                    fieldCount = struct.unpack('B', response_msg[offset:offset+1])[0]
+                    fieldCount = struct.unpack('B', data[offset:offset+1])[0]
                     offset += 1
 
                     for index in range(fieldCount):
-                        value = struct.unpack('>I', response_msg[offset:offset+4])[0]
+                        value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
                         if fieldCount == 21:
                             self.output[self.dataVal[index]] = value
+
                         elif fieldCount == 6:
                             self.output[self.indexVal[index]] = value
-                        else:
-                            self.output[self.depthvalue[index]] = value  
 
-                    stringFieldLength = struct.unpack('H', response_msg[offset:offset+2])[0]
+                        else:
+                            self.output[self.depthvalue[index]] = value 
+
+                    stringFieldLength = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
 
-                    multiplier = struct.unpack('H', response_msg[offset:offset+2])[0]
+                    multiplier = struct.unpack('H', data[offset:offset+2])[0]
                     self.output["multiplier"] = multiplier
                     offset += 2
 
-                    precision = struct.unpack('B', response_msg[offset:offset+1])[0]
+                    precision = struct.unpack('B', data[offset:offset+1])[0]
                     self.output["precision"] = precision
                     offset += 1
 
                     val = ["exchange", "exchange_token", "symbol"]
                     for i in range(3):
-                        stringLength = struct.unpack('B', response_msg[offset:offset+1])[0]
+                        stringLength = struct.unpack('B', data[offset:offset+1])[0]
                         offset += 1
-                        stringData = response_msg[offset:offset+stringLength].decode('utf-8')
+                        stringData = data[offset:offset+stringLength].decode('utf-8')
                         self.output[val[i]] = stringData
                         offset += stringLength
-                    self.output['symbol'] = self.symbol_token[self.symDict[topicId]]
+                    # self.output['symbol'] = self.symbol_token[self.symDict[topicId]]
                     self.resp[self.symDict[topicId]] = self.output
 
-                    return self.resp[self.symDict[topicId]]
+                    self.response_output(self.resp[self.symDict[topicId]])
                     
                 elif dataType == 85: #Full mode darafeed
 
                     offset += 1
-                    topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
+                    topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
 
-                    fieldCount = struct.unpack('B', response_msg[offset:offset+1])[0]
+                    fieldCount = struct.unpack('B', data[offset:offset+1])[0]
                     offset += 1
                     
                     for index in range(fieldCount):
-                        value = struct.unpack('>I', response_msg[offset:offset+4])[0]
+                        value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
                         if fieldCount == 21:
-                            if index in [0,6,7,11,13,14,17,18,19,20]: 
-                                self.resp[self.symDict[topicId]][self.dataVal[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
-                            else:
-                                self.resp[self.symDict[topicId]][self.dataVal[index]] = value
+
+                            self.resp[self.symDict[topicId]][self.dataVal[index]] = value
                         elif fieldCount == 6:
-                            self.output[self.indexVal[index]] = value
+                            self.resp[self.symDict[topicId]][self.indexVal[index]] = value
                         else:
-                            if 0 <= index <= 9:
-                                self.resp[self.symDict[topicId]][self.depthvalue[index]] = value / (10 ** self.resp[self.symDict[topicId]]['precision'])
-                            else:
-                                self.resp[self.symDict[topicId]][self.depthvalue[index]] = value
+                            self.resp[self.symDict[topicId]][self.depthvalue[index]] = value
                             
-                    return self.resp[self.symDict[topicId]]
+                    self.response_output(self.resp[self.symDict[topicId]])
                     
                 elif dataType == 76: #lite mode datafeed
 
                     offset += 1
-                    topicId = struct.unpack('H', response_msg[offset:offset+2])[0]
+                    topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
 
                     self.literesp[self.symDict[topicId]] = {}
 
                     for index in range(3):
-                        value = struct.unpack('>I', response_msg[offset:offset+4])[0]
+                        value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
-                        self.literesp[self.symDict[topicId]][self.litename[index]] = value
+                        if index == 0:
+                            self.resp[self.symDict[topicId]][self.litename[index]] = value / 10 ** self.resp[self.symDict[topicId]]['precision']
 
-                    self.literesp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
+                    self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
 
-                    return self.literesp[self.symDict[topicId]]
+                    self.response_output(self.resp[self.symDict[topicId]])
                 else:
                     pass
                 
         except Exception as e:
-
-            self.logger.error("Error While Unpacking datafeed", e)
-        
-    def datafeed(self,response_msg):
-        print('-----------',response_msg)
-        if 'multiplier' in response_msg:
-            response_msg.pop('multiplier')
-        if 'precision' in response_msg:
-            response_msg.pop('precision')
-        if 'exchange' in response_msg:
-            response_msg.pop('exchange')
-        if 'exchange_token' in response_msg:
-            response_msg.pop('exchange_token')
-        print(response_msg)
+            # pass
+            # print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            # self.logger.error("Error While Unpacking datafeed", e)
+    
 
 
-    def response_msg(self , response_msg):
-        
-        datasize, respType = struct.unpack('!HB', response_msg[:3])
+
+
+    def response_msg(self , data):
+
+        datasize, respType = struct.unpack('!HB', data[:3])
         if respType == 1: # Authentication response
-            print(self.auth_resp(response_msg))
-        elif respType == 5: # Unsubsciption response
-            print(self.unsubscribe_resp(response_msg))
-        elif respType == 12: # Full Mode Data Response
-            print(self.full_mode_resp(response_msg))
-        elif respType == 6: # Data Feed Response
-            data = self.datafeed_resp(response_msg)
-            self.datafeed(data)
+             print(self.auth_resp(data))
 
+        elif respType == 5: # Unsubsciption response
+
+           print(self.unsubscribe_resp(data))
+
+        elif respType == 12: # Full Mode Data Response
+
+            print(self.full_mode_resp(data))
+
+        elif respType == 6: # Data Feed Response
+            self.datafeed_resp(data)
+         
     async def close(self):
 
         if self.websocket and not self.websocket.closed:
@@ -442,6 +472,7 @@ class FyersHsmSocket():
                 await websocket.send(message)
                 response = await websocket.recv()
                 self.response_msg(response)
+                self.lite = True
                 if not self.lite:
                     message = self.full_mode_msg()
                     await websocket.send(message)
@@ -451,7 +482,6 @@ class FyersHsmSocket():
                 message = self.subscription_msg()
                 await websocket.send(message)
                 asyncio.create_task(self.send_ping())
-                x = 0
                 while True:
                     response = await websocket.recv()
                     # print(response)
@@ -462,7 +492,9 @@ class FyersHsmSocket():
                         self.ack_bool = False
                 
         except Exception as e:
-            self.logger.error("Error While Connection", e)
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
 
     def subscribe(self):
@@ -521,7 +553,7 @@ class FyersHsmSocket():
         dictConfig(LOGGING)
         self.logger = logging.getLogger('fyers_socket')
 
-# datadict =[]
-# access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
-# client = FyersHsmSocket(access_token,datadict)
-# client.subscribe(
+datadict = ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
+access_token ="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
+client = FyersHsmSocket(access_token,datadict)
+client.subscribe()
