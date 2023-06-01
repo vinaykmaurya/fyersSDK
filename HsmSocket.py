@@ -21,6 +21,7 @@ class FyersHsmSocket():
         self.channels = [1,2,3,4,5]
         self.scrips = list(self.symbol_token.keys())
 
+
         self.ackCount = None
         self.updateCount = 0
         self.lite = litemode
@@ -130,6 +131,7 @@ class FyersHsmSocket():
     def subscription_msg(self):
         try:
             # self.scrips = self.symbol_token.keys()
+            print(len(self.scrips))
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
             self.scripsData.append(len(self.scrips) & 0xFF)
@@ -163,7 +165,7 @@ class FyersHsmSocket():
             return 
         
 
-    def unsubscription_msg(self,scrips):
+    async def unsubscription_msg(self,scrips):
         try:
             scripsData = bytearray()
             scripsData.append(len(scrips) >> 8 & 0xFF)
@@ -190,6 +192,8 @@ class FyersHsmSocket():
             buffer_msg.append(2) 
             buffer_msg.extend(struct.pack(">H", 1))
             buffer_msg.append(self.channelNum)
+
+            await self.websocket.send(buffer_msg)
 
             return buffer_msg
         
@@ -250,6 +254,7 @@ class FyersHsmSocket():
 
     def unsubscribe_resp(self,response_msg):
         try:
+            print(response_msg)
             offset = 3
             field_count = struct.unpack('B', response_msg[offset:offset+1])[0]
             offset += 1
@@ -257,39 +262,58 @@ class FyersHsmSocket():
             offset += 1
             field_length = struct.unpack('H', response_msg[offset:offset+2])[0]
             offset += 2
-            string_val = response_msg[offset:offset+field_length].decode('utf-8')
+            print(offset)
+            # string_val = bytes(response_msg[offset:offset+field_length]).decode('latin-1')
+            string_val = response_msg[offset:offset+1].decode('latin-1')
             offset += field_length
+            print(string_val)
             if string_val == 'K':
-                return "Unsubscription done"
+                print("Unsubscription done")
             else:
-                return "Unsubscription failed"
+                print("Unsubscription failed")
+
+            return
         except Exception as e:
             self.logger.error("Error While Unpacking unsubscribe msg", e)
             return
                        
-    def full_mode_resp(self,response_msg):
-        try:    
+    def full_mode_resp(self, response_msg):
+        try:
             offset = 3
-            fieldCount = struct.unpack('!B', response_msg[offset:offset+1])[0]
+
+            # Unpack the field count
+            field_count = struct.unpack('!B', response_msg[offset:offset + 1])[0]
             offset += 1
-            if fieldCount >= 1:
-                field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
+
+            if field_count >= 1:
+                # Unpack the field ID
+                field_id = struct.unpack('!B', response_msg[offset:offset + 1])[0]
                 offset += 1
 
-                field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
+                # Unpack the field length
+                field_length = struct.unpack('!H', response_msg[offset:offset + 2])[0]
                 offset += 2
 
-                string_val = response_msg[offset:offset+field_length].decode('utf-8')
+                # Extract the string value and decode it
+                string_val = response_msg[offset:offset + field_length].decode('utf-8')
                 offset += field_length
 
                 if string_val == "K":
                     print("Full mode on")
                 else:
-                    print("error in full mode connection")
-                
+                    print("Error in full mode connection")
+            else:
+                print("No fields found in the response")
+
+        except struct.error as e:
+            self.logger.error("Error while unpacking Full Mode message: %s", e)
+        except UnicodeDecodeError as e:
+            self.logger.error("Error decoding string value in Full Mode message: %s", e)
         except Exception as e:
-            self.logger.error("Error While Unpacking Full Mode msg", e)
-            return 
+            self.logger.error("Unexpected error in Full Mode response: %s", e)
+
+
+            
     def response_output(self,data):
         dataResp = data
         # print("-------precision-------",dataResp )
@@ -468,6 +492,10 @@ class FyersHsmSocket():
 
         elif respType == 6: # Data Feed Response
             self.datafeed_resp(data)
+        
+        elif respType == 5:
+            self.unsubscribe_resp()
+
          
     async def close(self):
         print(f"WebSocket object: {self.websocket}")
@@ -488,7 +516,7 @@ class FyersHsmSocket():
                 await websocket.send(message)
                 response = await websocket.recv()
                 self.response_msg(response)
-                self.lite = True
+                # self.lite = True
                 if not self.lite:
                     message = self.full_mode_msg()
                     await websocket.send(message)
@@ -504,6 +532,7 @@ class FyersHsmSocket():
                     self.response_msg(response)
 
                     if self.ack_bool:
+                        print('ack---------------------------------------')
                         await websocket.send(self.ack_msg)
                         self.ack_bool = False
                 
@@ -512,20 +541,20 @@ class FyersHsmSocket():
             exc_type, exc_obj, exc_tb = sys.exc_info()
             logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
+        # except KeyboardInterrupt:
+        #    self.websocket.close()
 
     async def subscribe(self):
-        loop = asyncio.get_event_loop()
 
         try:
-            loop.run_until_complete(self.connectWS())
+            await self.connectWS()
         except KeyboardInterrupt:
-            tasks = asyncio.all_tasks(loop=loop)
+            tasks = asyncio.all_tasks()
 
             for task in tasks:
                 task.cancel()
-            loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-        finally:
-            loop.close()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
 
 
 
