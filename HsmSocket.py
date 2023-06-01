@@ -4,24 +4,201 @@ from logging.config import dictConfig
 import os
 import struct
 import base64
+# import SymbolConverstion
+from fyerstest.fyersApi import SessionModel, FyersModelv3
 
 import sys
 import websockets 
 
+class SymbolConverstion():
+    def __init__(self,symbols,datatype):
+        self.symbols = symbols
+        self.datatype = datatype
+
+    def symbol_to_token(self):
+        # if len(symbols) > 50:
+
+        symbols =','.join(self.symbols)
+        print(symbols)
+        client_id = ""
+        access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU1OTE2MTQsImV4cCI6MTY4NTY2NTgzNCwibmJmIjoxNjg1NTkxNjE0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2VCWS0wRFoyQmxtUkdOWTZkXzRaTEVFcHZoNGlocGVTSFNJQUdVLVhqS2huVGp0UkJweHB4RG41eW00Qm9EMUMtaGFEcHYtU0RydFRtdGNWTzFEZk5YSHVVVDAwVU4tUXNkLUFtX2FvRlJSOFFlQT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.I401r_TqG1e1SHekNbo1APWiNP3P4IvA_IBJaoWMbKY'
+        fyers = FyersModelv3(token=access_token, is_async=False)
+        quotesData = fyers.quotes({"symbols": symbols})
+        datadict = {}
+        values ={}
+        index_dict = {
+            "NSE:NIFTY50-INDEX": "Nifty 50",
+            "NSE:NIFTY100MFG-INDEX": "Nifty India Manufacturing",
+            "NSE:NIFTY100ESG-INDEX": "Nifty100 ESG",
+            "NSE:NIFTYDIGITAL-INDEX": "Nifty India Digital",
+            "NSE:NIFTYMICRO250-INDEX": "Nifty Microcap 250",
+            "NSE:NIFTYCONSDUR-INDEX": "Nifty Consumer Durables",
+            "NSE:NIFTYHEALTH-INDEX": "Nifty Healthcare",
+            "NSE:NIFTYOILGAS-INDEX": "Nifty Oil and Gas",
+            "NSE:NIFTY100ESGSECLDR-INDEX": "Nifty100 ESG Sector Leaders",
+            "NSE:NIFTY200MOM30-INDEX": "Nifty200 Momentum 30",
+            "NSE:NIFTYALPHALOWVOL-INDEX": "Nifty Alpha Low Volatility",
+            "NSE:NIFTY200QLTY30-INDEX": "Nifty200 Quality 30",
+            "NSE:NIFTYSMLCAP50-INDEX": "Nifty Smallcap 50",
+            "NSE:NIFTYMIDSEL-INDEX": "Nifty Midcap Select",
+            "NSE:NIFTYMIDCAP150-INDEX": "Nifty Midcap 150",
+            "NSE:NIFTY100EQLWGT-INDEX": "Nifty100 Equal Weight",
+            "NSE:NIFTY50EQLWGT-INDEX": "Nifty50 Equal Weight",
+            "NSE:NIFTYGS200COMPOSITE-INDEX": "Nifty GS Composite",
+            "NSE:NIFTYGS1115YR-INDEX": "Nifty GS 11-15 Year",
+            "NSE:NIFTYGS48YR-INDEX": "Nifty GS 4-8 Year",
+            "NSE:NIFTYGS10YRCLEAN-INDEX": "Nifty GS 10 Year Clean",
+            "NSE:NIFTYGS813YR-INDEX": "Nifty GS 8-13 Year",
+            "NSE:NIFTYSMLCAP100-INDEX": "Nifty Smallcap 100",
+            "NSE:NIFTY100QLTY30-INDEX": "Nifty100 Quality 30",
+            "NSE:NIFTYPVTBANK-INDEX": "Nifty Private Bank",
+            "NSE:NIFTYPHARMA-INDEX": "Nifty Pharma",
+            "NSE:NIFTYLARGEMID250-INDEX": "Nifty LargeMidcap 250",
+            "NSE:NIFTYGS15YRPLUS-INDEX": "Nifty GS 15 Year Plus",
+            "NSE:NIFTYPSUBANK-INDEX": "Nifty PSU Bank",
+            "NSE:NIFTYSMLCAP250-INDEX": "Nifty Smallcap 250",
+            "NSE:NIFTYENERGY-INDEX": "Nifty Energy",
+            "NSE:NIFTYALPHA50-INDEX": "Nifty Alpha 50",
+            "NSE:NIFTYPSE-INDEX": "Nifty PSE",
+            "NSE:NIFTYFINSRV25_50-INDEX": "Nifty Financial Services 25/50",
+            "NSE:NIFTYFINSERVICE-INDEX": "Nifty Financial Services",
+            "NSE:NIFTYREALTY-INDEX": "Nifty Realty",
+            "NSE:NIFTY500-INDEX": "Nifty 500",
+            "NSE:NIFTY500MULTICAP-INDEX": "Nifty500 Multicap",
+            "NSE:NIFTYMIDCAP50-INDEX": "Nifty Midcap 50",
+            "NSE:NIFTYTOTALMKT-INDEX": "Nifty Total Market",
+            "NSE:NIFTY50PR2XLEVERAGE-INDEX": "Nifty50 PR 2x Leverage",
+            "NSE:INDIAVIX-INDEX": "India VIX",
+            "NSE:NIFTYDIVOPPS50-INDEX": "Nifty Dividend Opportunities 50",
+            "NSE:NIFTYMNC-INDEX": "Nifty MNC",
+            "NSE:NIFTY50VALUE20-INDEX": "Nifty50 Value 20",
+            "NSE:NIFTY50-INDEX": "Nifty 50",
+            "NSE:HANGSENGBEES-NAV": "Hang Seng BeES",
+            "NSE:NIFTY100LIQ15-INDEX": "Nifty100 Liquid 15",
+            "NSE:NIFTY50TR2XLEVERAGE-INDEX": "Nifty50 TR 2x Leverage",
+            "NSE:NIFTY100-INDEX": "Nifty 100",
+            "NSE:NIFTY100LOWVOL30-INDEX": "Nifty100 Low Volatility 30",
+            "NSE:NIFTYBANK-INDEX": "Nifty Bank",
+            "NSE:NIFTYFMCG-INDEX": "Nifty FMCG",
+            "NSE:NIFTYIT-INDEX": "Nifty IT",
+            "NSE:NIFTYGS10YR-INDEX": "Nifty GS 10 Year",
+            "NSE:NIFTYMIDCAP100-INDEX": "Nifty Midcap 100",
+            "NSE:NIFTYNEXT50-INDEX": "Nifty Next 50",
+            "NSE:NIFTYM150QLTY50-INDEX": "Nifty MidSmallcap 400",
+            "NSE:NIFTYSERVICESECTOR-INDEX": "Nifty Services Sector",
+            "NSE:NIFTYMIDSML400-INDEX": "Nifty Midcap Smallcap 400",
+            "NSE:NIFTYAUTO-INDEX": "Nifty Auto",
+            "NSE:NIFTYMETAL-INDEX": "Nifty Metal",
+            "NSE:NIFTYINFRA-INDEX": "Nifty Infrastructure",
+            "NSE:NIFTYMEDIA-INDEX": "Nifty Media",
+            "NSE:NIFTY50PR1XINVERSE-INDEX": "Nifty50 PR 1x Inverse",
+            "NSE:NIFTY200-INDEX": "Nifty 200",
+            "NSE:NIFTY50TR1XINVERSE-INDEX": "Nifty50 TR 1x Inverse",
+            "NSE:NIFTYCPSE-INDEX": "Nifty CPSE",
+            "NSE:NIFTYMIDLIQ15-INDEX": "Nifty Midcap Liquid 15",
+            "NSE:NIFTYCOMMODITIES-INDEX": "Nifty Commodities",
+            "NSE:NIFTYCONSUMPTION-INDEX": "Nifty Consumption",
+            "NSE:NIFTY50DIVPOINT-INDEX": "Nifty50 Dividend Points",
+            "NSE:NIFTYGROWSECT15-INDEX": "Nifty Growth Sector 15",
+            "BSE:LCTMCI-INDEX": "LCTMCI",
+            "BSE:DFRGRI-INDEX": "DFRGRI",
+            "BSE:BSEQUI-INDEX": "BSEQUI",
+            "BSE:BSEDSI-INDEX": "BSEDSI",
+            "BSE:SML250-INDEX": "SML250",
+            "BSE:MID150-INDEX": "MID150",
+            "BSE:ESG100-INDEX": "ESG100",
+            "BSE:SNXT50-INDEX": "SNXT50",
+            "BSE:SNSX50-INDEX": "SNSX50",
+            "BSE:UTILS-INDEX": "UTILS",
+            "BSE:GREENX-INDEX": "GREENX",
+            "BSE:SENSEX-INDEX": "SENSEX",
+            "BSE:REALTY-INDEX": "REALTY",
+            "BSE:BSEPBI-INDEX": "BSEPBI",
+            "BSE:CDGS-INDEX": "CDGS",
+            "BSE:OILGAS-INDEX": "OILGAS",
+            "BSE:ENERGY-INDEX": "ENERGY",
+            "BSE:POWER-INDEX": "POWER",
+            "BSE:BSE500-INDEX": "BSE500",
+            "BSE:BSE100-INDEX": "BSE100",
+            "BSE:BSEPSU-INDEX": "BSEPSU",
+            "BSE:BSE HC-INDEX": "BSE HC",
+            "BSE:MSL400-INDEX": "MSL400",
+            "BSE:BHRT22-INDEX": "BHRT22",
+            "BSE:BANKEX-INDEX": "BANKEX",
+            "BSE:ALLCAP-INDEX": "ALLCAP",
+            "BSE:INFRA-INDEX": "INFRA",
+            "BSE:BSE CD-INDEX": "BSE CD",
+            "BSE:MIDCAP-INDEX": "MIDCAP",
+            "BSE:AUTO-INDEX": "AUTO",
+            "BSE:BASMTR-INDEX": "BASMTR",
+            "BSE:BSE200-INDEX": "BSE200",
+            "BSE:FIN-INDEX": "FIN",
+            "BSE:BSE CG-INDEX": "BSE CG",
+            "BSE:BSEEVI-INDEX": "BSEEVI",
+            "BSE:TECK-INDEX": "TECK",
+            "BSE:METAL-INDEX": "METAL",
+            "BSE:CARBON-INDEX": "CARBON",
+            "BSE:MIDSEL-INDEX": "MIDSEL",
+            "BSE:SMEIPO-INDEX": "SMEIPO",
+            "BSE:BSEMOI-INDEX": "BSEMOI",
+            "BSE:TELCOM-INDEX": "TELCOM",
+            "BSE:CPSE-INDEX": "CPSE",
+            "BSE:LMI250-INDEX": "LMI250",
+            "BSE:SMLCAP-INDEX": "SMLCAP",
+            "BSE:BSE IT-INDEX": "BSE IT",
+            "BSE:MFG-INDEX": "MFG",
+            "BSE:INDSTR-INDEX": "INDSTR",
+            "BSE:BSELVI-INDEX": "BSELVI",
+            "BSE:LRGCAP-INDEX": "LRGCAP",
+            "BSE:BSEIPO-INDEX": "BSEIPO",
+            "BSE:BSEFMC-INDEX": "BSEFMC",
+            "BSE:SMLSEL-INDEX": "SMLSEL"
+        }
+        mapping = {"1010":'nse_cm' ,"1011": 'nse_fo', "1120" : 'mcx_fo' , "1210" :'bse_cm', "1012" : 'cde_fo'}
+        if 'd' in quotesData:
+            for data in quotesData['d']:
+                # print(data)
+                if data['s'] == 'ok':
+                    # datadict[data['n']] = {}
+                    values = {}
+                    # values['exch'] = data['v']['exchange']
+                    values['fyToken'] = data['v']['fyToken']
+                    values['symbol'] = data['v']['symbol']
+                    key = values['fyToken'][:4]
+                    values['segment'] = mapping[key]
+                    data = values['symbol'].split('-')
+                    print(data)
+
+                    if len(data) > 1 and data[-1] == "INDEX":
+                        if values['symbol'] in index_dict:
+                            values['exToken'] = index_dict[values['symbol']]
+                        else:
+                            values['exToken'] = values['symbol'].split(':')[1].split('-')[0]
+                        values['subSymbol'] = 'if'+ '|'+values['segment'] + '|'+values['exToken']
+                    elif self.datatype == 'depthUpdate':
+                        values['exToken'] = values['fyToken'][10:]
+                        values['subSymbol'] = 'dp'+ '|'+values['segment'] + '|'+values['exToken']
+
+                    else :
+                        values['exToken'] = values['fyToken'][10:]
+                        values['subSymbol'] = 'sf'+ '|'+values['segment'] + '|'+values['exToken']
+                    
+
+
+                    datadict[values['subSymbol']] = values['symbol']
+            return datadict
+        
 
 class FyersHsmSocket():
 
-    def __init__(self,access_token,symbol_token, log_path = None , litemode = False):
+    def __init__(self,access_token, log_path = None , litemode = False):
         self.url = ""
         self.access_token = str(access_token)
         self.log_path = log_path
         self.Source = "PythonSDK-1.0.0"
         self.channelNum = 1
-        self.symbol_token = symbol_token
         self.channels = [1,2,3,4,5]
-        self.scrips = list(self.symbol_token.keys())
-
-
+        self.datatype = None
         self.ackCount = None
         self.updateCount = 0
         self.lite = litemode
@@ -165,8 +342,10 @@ class FyersHsmSocket():
             return 
         
 
-    async def unsubscription_msg(self,scrips):
+    async def unsubscription_msg(self,symbols):
         try:
+            conv = SymbolConverstion(symbols,self.datatype)
+            scrips = list(conv.symbol_to_token().keys())
             scripsData = bytearray()
             scripsData.append(len(scrips) >> 8 & 0xFF)
             scripsData.append(len(scrips) & 0xFF)
@@ -537,16 +716,21 @@ class FyersHsmSocket():
                         self.ack_bool = False
                 
         except Exception as e:
-            print(e)
+            # print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
             logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
         # except KeyboardInterrupt:
         #    self.websocket.close()
 
-    async def subscribe(self):
+    async def subscribe(self,symbols, datatype):
 
         try:
+            self.datatype = datatype
+            conv = SymbolConverstion(symbols,datatype)
+            self.symbol_token = conv.symbol_to_token()
+            self.scrips = list(self.symbol_token.keys())
+
             await self.connectWS()
         except KeyboardInterrupt:
             tasks = asyncio.all_tasks()
