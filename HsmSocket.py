@@ -11,18 +11,20 @@ import sys
 import websockets 
 
 class SymbolConverstion():
-    def __init__(self,symbols,datatype):
+
+    def __init__(self,access_token,symbols,datatype):
         self.symbols = symbols
         self.datatype = datatype
+        self.access_token = access_token
 
-    def symbol_to_token(self):
-        # if len(symbols) > 50:
+
+    def symbol_to_token(self):   
 
         symbols =','.join(self.symbols)
-        print(symbols)
+        print(len(self.symbols))
         client_id = ""
-        access_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU1OTE2MTQsImV4cCI6MTY4NTY2NTgzNCwibmJmIjoxNjg1NTkxNjE0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2VCWS0wRFoyQmxtUkdOWTZkXzRaTEVFcHZoNGlocGVTSFNJQUdVLVhqS2huVGp0UkJweHB4RG41eW00Qm9EMUMtaGFEcHYtU0RydFRtdGNWTzFEZk5YSHVVVDAwVU4tUXNkLUFtX2FvRlJSOFFlQT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.I401r_TqG1e1SHekNbo1APWiNP3P4IvA_IBJaoWMbKY'
-        fyers = FyersModelv3(token=access_token, is_async=False)
+        
+        fyers = FyersModelv3(token=self.access_token, is_async=False)
         quotesData = fyers.quotes({"symbols": symbols})
         datadict = {}
         values ={}
@@ -100,58 +102,58 @@ class SymbolConverstion():
             "NSE:NIFTYCONSUMPTION-INDEX": "Nifty Consumption",
             "NSE:NIFTY50DIVPOINT-INDEX": "Nifty50 Dividend Points",
             "NSE:NIFTYGROWSECT15-INDEX": "Nifty Growth Sector 15",
-            "BSE:LCTMCI-INDEX": "LCTMCI",
-            "BSE:DFRGRI-INDEX": "DFRGRI",
-            "BSE:BSEQUI-INDEX": "BSEQUI",
-            "BSE:BSEDSI-INDEX": "BSEDSI",
-            "BSE:SML250-INDEX": "SML250",
-            "BSE:MID150-INDEX": "MID150",
+            "BSE:100LARGECAPTMC-INDEX": "LCTMCI",
+            "BSE:DFRG-INDEX": "DFRGRI",
+            "BSE:QUALITY-INDEX": "BSEQUI",
+            "BSE:DIVIDENDSTABILITY-INDEX": "BSEDSI",
+            "BSE:250SMALLCAP-INDEX": "SML250",
+            "BSE:150MIDCAP-INDEX": "MID150",
             "BSE:ESG100-INDEX": "ESG100",
             "BSE:SNXT50-INDEX": "SNXT50",
             "BSE:SNSX50-INDEX": "SNSX50",
             "BSE:UTILS-INDEX": "UTILS",
-            "BSE:GREENX-INDEX": "GREENX",
+            "BSE:GREENEX-INDEX": "GREENX",
             "BSE:SENSEX-INDEX": "SENSEX",
             "BSE:REALTY-INDEX": "REALTY",
-            "BSE:BSEPBI-INDEX": "BSEPBI",
+            "BSE:PRIVATEBANKS-INDEX": "BSEPBI",
             "BSE:CDGS-INDEX": "CDGS",
             "BSE:OILGAS-INDEX": "OILGAS",
             "BSE:ENERGY-INDEX": "ENERGY",
             "BSE:POWER-INDEX": "POWER",
-            "BSE:BSE500-INDEX": "BSE500",
-            "BSE:BSE100-INDEX": "BSE100",
-            "BSE:BSEPSU-INDEX": "BSEPSU",
-            "BSE:BSE HC-INDEX": "BSE HC",
-            "BSE:MSL400-INDEX": "MSL400",
+            "BSE:500-INDEX": "BSE500",
+            "BSE:100-INDEX": "BSE100",
+            "BSE:PSU-INDEX": "BSEPSU",
+            "BSE:HC-INDEX": "BSE HC",
+            "BSE:400MIDSMALLCAP-INDEX": "MSL400",
             "BSE:BHRT22-INDEX": "BHRT22",
             "BSE:BANKEX-INDEX": "BANKEX",
             "BSE:ALLCAP-INDEX": "ALLCAP",
             "BSE:INFRA-INDEX": "INFRA",
-            "BSE:BSE CD-INDEX": "BSE CD",
+            "BSE:CD-INDEX": "BSE CD",
             "BSE:MIDCAP-INDEX": "MIDCAP",
             "BSE:AUTO-INDEX": "AUTO",
             "BSE:BASMTR-INDEX": "BASMTR",
-            "BSE:BSE200-INDEX": "BSE200",
+            "BSE:200-INDEX": "BSE200",
             "BSE:FIN-INDEX": "FIN",
-            "BSE:BSE CG-INDEX": "BSE CG",
-            "BSE:BSEEVI-INDEX": "BSEEVI",
+            "BSE:CG-INDEX": "BSE CG",
+            "BSE:ENHANCEDVALUE-INDEX": "BSEEVI",
             "BSE:TECK-INDEX": "TECK",
             "BSE:METAL-INDEX": "METAL",
-            "BSE:CARBON-INDEX": "CARBON",
+            "BSE:CARBONEX-INDEX": "CARBON",
             "BSE:MIDSEL-INDEX": "MIDSEL",
-            "BSE:SMEIPO-INDEX": "SMEIPO",
-            "BSE:BSEMOI-INDEX": "BSEMOI",
+            "BSE:SME IPO-INDEX": "SMEIPO",
+            "BSE:MOMENTUM-INDEX": "BSEMOI",
             "BSE:TELCOM-INDEX": "TELCOM",
             "BSE:CPSE-INDEX": "CPSE",
-            "BSE:LMI250-INDEX": "LMI250",
+            "BSE:250LARGEMIDCAP-INDEX": "LMI250",
             "BSE:SMLCAP-INDEX": "SMLCAP",
-            "BSE:BSE IT-INDEX": "BSE IT",
-            "BSE:MFG-INDEX": "MFG",
+            "BSE:IT-INDEX": "BSE IT",
+            "BSE:INDIAMANUFACTURING-INDEX": "MFG",
             "BSE:INDSTR-INDEX": "INDSTR",
-            "BSE:BSELVI-INDEX": "BSELVI",
+            "BSE:LOWVOLATILITY-INDEX": "BSELVI",
             "BSE:LRGCAP-INDEX": "LRGCAP",
-            "BSE:BSEIPO-INDEX": "BSEIPO",
-            "BSE:BSEFMC-INDEX": "BSEFMC",
+            "BSE:IPO-INDEX": "BSEIPO",
+            "BSE:FMC-INDEX": "BSEFMC",
             "BSE:SMLSEL-INDEX": "SMLSEL"
         }
         mapping = {"1010":'nse_cm' ,"1011": 'nse_fo', "1120" : 'mcx_fo' , "1210" :'bse_cm', "1012" : 'cde_fo'}
@@ -167,7 +169,7 @@ class SymbolConverstion():
                     key = values['fyToken'][:4]
                     values['segment'] = mapping[key]
                     data = values['symbol'].split('-')
-                    print(data)
+                    # print(data)
 
                     if len(data) > 1 and data[-1] == "INDEX":
                         if values['symbol'] in index_dict:
@@ -187,6 +189,8 @@ class SymbolConverstion():
 
                     datadict[values['subSymbol']] = values['symbol']
             return datadict
+        else:
+            return quotesData
         
 
 class FyersHsmSocket():
@@ -204,18 +208,19 @@ class FyersHsmSocket():
         self.lite = litemode
         self.output = {}
         self.literesp = {}
+        self.symbol_token = {}
         self.logger_setup()
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
-        self.logger.error('No error',)
         self.resp = {}
         self.symDict = {}
         self.extra_data = {}
+        self.ErrResponse = {"code":0,"message":"","s":""}
         self.ack_bool = False
         self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" 
                         , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price",'symbol']
         self.indexVal = ['ltp', 'close_price', 'ExFeedTime', 'high_price', 'low_price', 'open_price', 'symbol']
-        self.litename = ["ltp","vol_traded_today" , "last_traded_time" ]
+        self.litename = ["ltp","vol_traded_today" , "last_traded_time", 'symbol' ]
         self.depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
                         "askPrice1", "askPrice2", "askPrice3", "askPrice4", "askPrice5", 
                         "bidsize1","bidsize2","bidsize3","bidsize4","bidsize5",
@@ -497,33 +502,41 @@ class FyersHsmSocket():
         dataResp = data
         # print("-------precision-------",dataResp )
         response = {}
-        if 'bidPrice1' in dataResp:
-
-            for i , val in enumerate(self.depthvalue):
-                if val in dataResp and i < 10:
+        if 'bidPrice1' not in dataResp and 'vol_traded_today' in dataResp and self.lite:
+            # print(dataResp)
+            for i , val in enumerate(self.litename):
+                if val in dataResp and val == 'ltp':
                     response[val] = dataResp[val] / (10 ** dataResp['precision']) 
                 else:
                     response[val] = dataResp[val]
-        elif 'askSize' in dataResp:
-            for i , val in enumerate(self.dataVal):
-                if val in dataResp and i in [0,6,7,11,13,14,17,18,19,20]:
-                    response[val] = dataResp[val] / (10 ** dataResp['precision']) 
-                else:
-                    response[val] = dataResp[val]
-
-            if 'OI' in response:
-                response.pop('OI')
-            if 'Yhigh' in response:
-                response.pop('Yhigh')
-            if 'Ylow' in response:
-                response.pop('Ylow')
         else:
-            for i , val in enumerate(self.indexVal):
-                if val in dataResp and i in [0]:
-                    response[val] = dataResp[val] / (10 ** dataResp['precision']) 
-                else:
-                    response[val] = dataResp[val]
-        
+            if 'bidPrice1' in dataResp:
+
+                for i , val in enumerate(self.depthvalue):
+                    if val in dataResp and i < 10:
+                        response[val] = dataResp[val] / (10 ** dataResp['precision']) 
+                    else:
+                        response[val] = dataResp[val]
+            elif 'askSize' in dataResp:
+                for i , val in enumerate(self.dataVal):
+                    if val in dataResp and i in [0,6,7,11,13,14,17,18,19,20]:
+                        response[val] = dataResp[val] / (10 ** dataResp['precision']) 
+                    else:
+                        response[val] = dataResp[val]
+
+                if 'OI' in response:
+                    response.pop('OI')
+                if 'Yhigh' in response:
+                    response.pop('Yhigh')
+                if 'Ylow' in response:
+                    response.pop('Ylow')
+            else:
+                for i , val in enumerate(self.indexVal):
+                    if val in dataResp and i in [0,1,3,4,5]:
+                        response[val] = dataResp[val] / (10 ** dataResp['precision']) 
+                    else:
+                        response[val] = dataResp[val]
+            
             # if 'OI' in response:
             #     response.pop('OI')
             # if 'Yhigh' in response:
@@ -635,18 +648,18 @@ class FyersHsmSocket():
                     for index in range(3):
                         value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
-                        if index == 0:
-                            self.literesp[self.symDict[topicId]][self.litename[index]] = value / 10 ** self.resp[self.symDict[topicId]]['precision']
+                        self.resp[self.symDict[topicId]][self.dataVal[index]] = value 
 
-                    self.literesp[self.symDict[topicId]]['symbol']  = self.literesp[self.symDict[topicId]]['symbol']
-
-                    self.response_output(self.literesp[self.symDict[topicId]])
+                    # self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
+                    # self.resp[self.symDict[topicId]]['precision']  = self.resp[self.symDict[topicId]]['precision']
+                    print('---------------',self.resp[self.symDict[topicId]],'-------------')
+                    self.response_output(self.resp[self.symDict[topicId]])
                 else:
                     pass
                 
         except Exception as e:
             # pass
-            # print(e)
+            print(self.resp[self.symDict[topicId]])
             exc_type, exc_obj, exc_tb = sys.exc_info()
             self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
             # self.logger.error("Error While Unpacking datafeed", e)
@@ -718,7 +731,7 @@ class FyersHsmSocket():
         except Exception as e:
             # print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
         # except KeyboardInterrupt:
         #    self.websocket.close()
@@ -727,8 +740,11 @@ class FyersHsmSocket():
 
         try:
             self.datatype = datatype
-            conv = SymbolConverstion(symbols,datatype)
-            self.symbol_token = conv.symbol_to_token()
+            conv = SymbolConverstion(self.access_token, symbols, datatype)
+            self.symbol_token = (conv.symbol_to_token())
+            if 's' in self.symbol_token:
+                return self.symbol_token
+            print(self.symbol_token)
             self.scrips = list(self.symbol_token.keys())
 
             await self.connectWS()
