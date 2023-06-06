@@ -4,11 +4,15 @@ from logging.config import dictConfig
 import os
 import struct
 import base64
-# import SymbolConverstion
+from ratelimiter import RateLimiter
 from fyerstest.fyersApi import SessionModel, FyersModelv3
 
 import sys
 import websockets 
+
+# {'s': 'error', 'code': -300, 'message': 'Please provide a valid symbol'}
+# {'s': 'error', 'code': -1600, 'message': 'Could not authenticate the user '}
+
 
 class SymbolConverstion():
 
@@ -30,29 +34,29 @@ class SymbolConverstion():
         values ={}
         index_dict = {
             "NSE:NIFTY50-INDEX": "Nifty 50",
-            "NSE:NIFTY100MFG-INDEX": "Nifty India Manufacturing",
+            "NSE:NIFTYINDIAMFG-INDEX": "Nifty India Manufacturing",
             "NSE:NIFTY100ESG-INDEX": "Nifty100 ESG",
-            "NSE:NIFTYDIGITAL-INDEX": "Nifty India Digital",
-            "NSE:NIFTYMICRO250-INDEX": "Nifty Microcap 250",
-            "NSE:NIFTYCONSDUR-INDEX": "Nifty Consumer Durables",
-            "NSE:NIFTYHEALTH-INDEX": "Nifty Healthcare",
-            "NSE:NIFTYOILGAS-INDEX": "Nifty Oil and Gas",
+            "NSE:NIFTYINDDIGITAL-INDEX": "Nifty India Digital",
+            "NSE:NIFTYMICROCAP250-INDEX": "Nifty Microcap 250",
+            "NSE:NIFTYCONSRDURBL-INDEX": "Nifty Consumer Durables",
+            "NSE:NIFTYHEALTHCARE-INDEX": "Nifty Healthcare",
+            "NSE:NIFTYOILANDGAS-INDEX": "Nifty Oil and Gas",
             "NSE:NIFTY100ESGSECLDR-INDEX": "Nifty100 ESG Sector Leaders",
-            "NSE:NIFTY200MOM30-INDEX": "Nifty200 Momentum 30",
+            "NSE:NIFTY200MOMENTM30-INDEX": "Nifty200 Momentum 30",
             "NSE:NIFTYALPHALOWVOL-INDEX": "Nifty Alpha Low Volatility",
-            "NSE:NIFTY200QLTY30-INDEX": "Nifty200 Quality 30",
+            "NSE:NIFTY200QUALTY30-INDEX": "Nifty200 Quality 30",
             "NSE:NIFTYSMLCAP50-INDEX": "Nifty Smallcap 50",
-            "NSE:NIFTYMIDSEL-INDEX": "Nifty Midcap Select",
+            "NSE:NIFTYMIDSELECT-INDEX": "Nifty Midcap Select",
             "NSE:NIFTYMIDCAP150-INDEX": "Nifty Midcap 150",
-            "NSE:NIFTY100EQLWGT-INDEX": "Nifty100 Equal Weight",
-            "NSE:NIFTY50EQLWGT-INDEX": "Nifty50 Equal Weight",
-            "NSE:NIFTYGS200COMPOSITE-INDEX": "Nifty GS Composite",
+            "NSE:NIFTY100 EQL WGT-INDEX": "Nifty100 Equal Weight",
+            "NSE:NIFTY50 EQL WGT-INDEX": "Nifty50 Equal Weight",
+            "NSE:NIFTYGSCOMPSITE-INDEX": "Nifty GS Composite",
             "NSE:NIFTYGS1115YR-INDEX": "Nifty GS 11-15 Year",
             "NSE:NIFTYGS48YR-INDEX": "Nifty GS 4-8 Year",
-            "NSE:NIFTYGS10YRCLEAN-INDEX": "Nifty GS 10 Year Clean",
+            "NSE:NIFTYGS10YRCLN-INDEX": "Nifty GS 10 Year Clean",
             "NSE:NIFTYGS813YR-INDEX": "Nifty GS 8-13 Year",
             "NSE:NIFTYSMLCAP100-INDEX": "Nifty Smallcap 100",
-            "NSE:NIFTY100QLTY30-INDEX": "Nifty100 Quality 30",
+            "NSE:NIFTYQUALITY30-INDEX": "Nifty100 Quality 30",
             "NSE:NIFTYPVTBANK-INDEX": "Nifty Private Bank",
             "NSE:NIFTYPHARMA-INDEX": "Nifty Pharma",
             "NSE:NIFTYLARGEMID250-INDEX": "Nifty LargeMidcap 250",
@@ -62,24 +66,24 @@ class SymbolConverstion():
             "NSE:NIFTYENERGY-INDEX": "Nifty Energy",
             "NSE:NIFTYALPHA50-INDEX": "Nifty Alpha 50",
             "NSE:NIFTYPSE-INDEX": "Nifty PSE",
-            "NSE:NIFTYFINSRV25_50-INDEX": "Nifty Financial Services 25/50",
-            "NSE:NIFTYFINSERVICE-INDEX": "Nifty Financial Services",
+            "NSE:NIFTYFINSRV2550-INDEX": "Nifty Financial Services 25/50",
+            "NSE:FINNIFTY-INDEX": "Nifty Financial Services",
             "NSE:NIFTYREALTY-INDEX": "Nifty Realty",
             "NSE:NIFTY500-INDEX": "Nifty 500",
             "NSE:NIFTY500MULTICAP-INDEX": "Nifty500 Multicap",
             "NSE:NIFTYMIDCAP50-INDEX": "Nifty Midcap 50",
             "NSE:NIFTYTOTALMKT-INDEX": "Nifty Total Market",
-            "NSE:NIFTY50PR2XLEVERAGE-INDEX": "Nifty50 PR 2x Leverage",
+            "NSE:NIFTY50PR2XLEV-INDEX": "Nifty50 PR 2x Leverage",
             "NSE:INDIAVIX-INDEX": "India VIX",
             "NSE:NIFTYDIVOPPS50-INDEX": "Nifty Dividend Opportunities 50",
             "NSE:NIFTYMNC-INDEX": "Nifty MNC",
             "NSE:NIFTY50VALUE20-INDEX": "Nifty50 Value 20",
             "NSE:NIFTY50-INDEX": "Nifty 50",
-            "NSE:HANGSENGBEES-NAV": "Hang Seng BeES",
+            "NSE:HANGSENG BEES-NAV-INDEX": "Hang Seng BeES",
             "NSE:NIFTY100LIQ15-INDEX": "Nifty100 Liquid 15",
-            "NSE:NIFTY50TR2XLEVERAGE-INDEX": "Nifty50 TR 2x Leverage",
+            "NSE:NIFTY50TR2XLEV-INDEX": "Nifty50 TR 2x Leverage",
             "NSE:NIFTY100-INDEX": "Nifty 100",
-            "NSE:NIFTY100LOWVOL30-INDEX": "Nifty100 Low Volatility 30",
+            "NSE:NIFTY100 LOWVOL30-INDEX": "Nifty100 Low Volatility 30",
             "NSE:NIFTYBANK-INDEX": "Nifty Bank",
             "NSE:NIFTYFMCG-INDEX": "Nifty FMCG",
             "NSE:NIFTYIT-INDEX": "Nifty IT",
@@ -87,15 +91,15 @@ class SymbolConverstion():
             "NSE:NIFTYMIDCAP100-INDEX": "Nifty Midcap 100",
             "NSE:NIFTYNEXT50-INDEX": "Nifty Next 50",
             "NSE:NIFTYM150QLTY50-INDEX": "Nifty MidSmallcap 400",
-            "NSE:NIFTYSERVICESECTOR-INDEX": "Nifty Services Sector",
+            "NSE:NIFTYSERVSECTOR-INDEX": "Nifty Services Sector",
             "NSE:NIFTYMIDSML400-INDEX": "Nifty Midcap Smallcap 400",
             "NSE:NIFTYAUTO-INDEX": "Nifty Auto",
             "NSE:NIFTYMETAL-INDEX": "Nifty Metal",
             "NSE:NIFTYINFRA-INDEX": "Nifty Infrastructure",
             "NSE:NIFTYMEDIA-INDEX": "Nifty Media",
-            "NSE:NIFTY50PR1XINVERSE-INDEX": "Nifty50 PR 1x Inverse",
+            "NSE:NIFTY50PR1XINV-INDEX": "Nifty50 PR 1x Inverse",
             "NSE:NIFTY200-INDEX": "Nifty 200",
-            "NSE:NIFTY50TR1XINVERSE-INDEX": "Nifty50 TR 1x Inverse",
+            "NSE:NIFTY50TR1XINV-INDEX": "Nifty50 TR 1x Inverse",
             "NSE:NIFTYCPSE-INDEX": "Nifty CPSE",
             "NSE:NIFTYMIDLIQ15-INDEX": "Nifty Midcap Liquid 15",
             "NSE:NIFTYCOMMODITIES-INDEX": "Nifty Commodities",
@@ -157,6 +161,8 @@ class SymbolConverstion():
             "BSE:SMLSEL-INDEX": "SMLSEL"
         }
         mapping = {"1010":'nse_cm' ,"1011": 'nse_fo', "1120" : 'mcx_fo' , "1210" :'bse_cm', "1012" : 'cde_fo'}
+        # print(quotesData)
+        wrong_symbol =[]
         if 'd' in quotesData:
             for data in quotesData['d']:
                 # print(data)
@@ -184,23 +190,22 @@ class SymbolConverstion():
                     else :
                         values['exToken'] = values['fyToken'][10:]
                         values['subSymbol'] = 'sf'+ '|'+values['segment'] + '|'+values['exToken']
-                    
-
-
                     datadict[values['subSymbol']] = values['symbol']
-            return datadict
+                elif data['s'] == 'error':
+                    wrong_symbol.append(data['n'])
+
+            return [wrong_symbol , datadict]
         else:
-            return quotesData
-        
+            return [quotesData,{}]
 
 class FyersHsmSocket():
 
-    def __init__(self,access_token, log_path = None , litemode = False):
+    def __init__(self,access_token, log_path = None , litemode = False , channel = 1):
         self.url = ""
         self.access_token = str(access_token)
         self.log_path = log_path
         self.Source = "PythonSDK-1.0.0"
-        self.channelNum = 1
+        self.channelNum = channel
         self.channels = [1,2,3,4,5]
         self.datatype = None
         self.ackCount = None
@@ -212,6 +217,7 @@ class FyersHsmSocket():
         self.logger_setup()
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
+        self.message = []
         self.resp = {}
         self.symDict = {}
         self.extra_data = {}
@@ -227,6 +233,8 @@ class FyersHsmSocket():
                         "askSize1","askSize2","askSize3","askSize4","askSize5",
                         "bidorder1","bidorder2","bidorder3","bidorder4","bidorder5",
                         "askorder1","askorder2","askorder3","askorder4","askorder5",'symbol']
+
+
 
     def token_to_byte(self):
         try:
@@ -313,6 +321,9 @@ class FyersHsmSocket():
     def subscription_msg(self):
         try:
             # self.scrips = self.symbol_token.keys()
+
+
+
             print(len(self.scrips))
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
@@ -349,7 +360,7 @@ class FyersHsmSocket():
 
     async def unsubscription_msg(self,symbols):
         try:
-            conv = SymbolConverstion(symbols,self.datatype)
+            conv = SymbolConverstion(self.access_token,symbols,self.datatype)
             scrips = list(conv.symbol_to_token().keys())
             scripsData = bytearray()
             scripsData.append(len(scrips) >> 8 & 0xFF)
@@ -377,7 +388,7 @@ class FyersHsmSocket():
             buffer_msg.extend(struct.pack(">H", 1))
             buffer_msg.append(self.channelNum)
 
-            await self.websocket.send(buffer_msg)
+            self.message.append(buffer_msg)
 
             return buffer_msg
         
@@ -634,7 +645,8 @@ class FyersHsmSocket():
                             self.resp[self.symDict[topicId]][self.indexVal[index]] = value
                         else:
                             self.resp[self.symDict[topicId]][self.depthvalue[index]] = value
-                            
+                    print('----lenself.resp---',len(self.resp),'\n')
+                    
                     self.response_output(self.resp[self.symDict[topicId]])
                     
                 elif dataType == 76: #lite mode datafeed
@@ -652,7 +664,7 @@ class FyersHsmSocket():
 
                     # self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
                     # self.resp[self.symDict[topicId]]['precision']  = self.resp[self.symDict[topicId]]['precision']
-                    print('---------------',self.resp[self.symDict[topicId]],'-------------')
+                    # print('---------------',self.resp[self.symDict[topicId]],'-------------')
                     self.response_output(self.resp[self.symDict[topicId]])
                 else:
                     pass
@@ -690,33 +702,46 @@ class FyersHsmSocket():
 
          
     async def close(self):
-        print(f"WebSocket object: {self.websocket}")
-        print(f"WebSocket closed state: {self.websocket.closed}")
-
         if self.websocket and not self.websocket.closed:
             await self.websocket.close()
-            
+
+    async def send_message(self):
+        try:
+            message = self.message.pop()
+            await self.websocket.send(message)
+            print('----send msg--')
+
+        except IndexError:
+            print('---pass---')
+            pass
+
+        asyncio.get_event_loop().call_later(1, lambda: asyncio.create_task(self.send_message()))
+
+
     async def send_ping(self):
         await self.websocket.ping()
+        print("------oing")
         asyncio.get_event_loop().call_later(10, lambda: asyncio.create_task(self.send_ping()))
     
     async def connectWS(self):
         try:
+            # if not self.error_flag:
             async with websockets.connect("wss://socket.fydev.tech/hsm/v1-5/dev" ) as websocket:
                 self.websocket = websocket
                 message = self.token_to_byte()
-                await websocket.send(message)
+                self.message.append(message)
+                await self.send_message()
                 response = await websocket.recv()
                 self.response_msg(response)
                 # self.lite = True
                 if not self.lite:
                     message = self.full_mode_msg()
-                    await websocket.send(message)
+                    self.message.append(message)
                     response = await websocket.recv()
                     self.response_msg(response)
 
                 message = self.subscription_msg()
-                await websocket.send(message)
+                self.message.append(message)
                 asyncio.create_task(self.send_ping())
                 while True:
                     response = await websocket.recv()
@@ -725,9 +750,9 @@ class FyersHsmSocket():
 
                     if self.ack_bool:
                         print('ack---------------------------------------')
-                        await websocket.send(self.ack_msg)
+                        self.message.append(message)
                         self.ack_bool = False
-                
+            
         except Exception as e:
             # print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -736,15 +761,41 @@ class FyersHsmSocket():
         # except KeyboardInterrupt:
         #    self.websocket.close()
 
+    def check_auth_and_symbol(self):
+
+        conv = SymbolConverstion(self.access_token, self.symbols, self.datatype)
+        error_msg = {}
+        self.symbol_token = conv.symbol_to_token()
+        print(self.symbol_token)
+        if 's' in self.symbol_token[0] and self.symbol_token[0]['s'] == 'error':
+            self.error_flag = True
+            error_msg['code'] = -1600
+            error_msg['s'] = 'error'
+            error_msg['message'] = 'Could not authenticate the user '
+            print(error_msg)
+        elif type(self.symbol_token[0]) == list:
+            error_msg['code'] = -300
+            error_msg['s'] = 'error'
+            error_msg['message'] = 'Please provide a valid symbol'
+            error_msg['symbols'] = self.symbol_token[0]
+            print(error_msg)
+        return self.symbol_token[1]
+
+
+
+
+
+
+
+
     async def subscribe(self,symbols, datatype):
 
         try:
             self.datatype = datatype
-            conv = SymbolConverstion(self.access_token, symbols, datatype)
-            self.symbol_token = (conv.symbol_to_token())
-            if 's' in self.symbol_token:
-                return self.symbol_token
-            print(self.symbol_token)
+            self.symbols = symbols
+            # conv = SymbolConverstion(self.access_token, symbols, datatype)
+            self.symbol_token = (self.check_auth_and_symbol())
+
             self.scrips = list(self.symbol_token.keys())
 
             await self.connectWS()
