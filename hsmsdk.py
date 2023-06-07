@@ -59,7 +59,7 @@ class SymbolConverstion():
             "NSE:NIFTYALPHA50-INDEX": "Nifty Alpha 50",
             "NSE:NIFTYPSE-INDEX": "Nifty PSE",
             "NSE:NIFTYFINSRV2550-INDEX": "Nifty Financial Services 25/50",
-            "NSE:FINNIFTY-INDEX": "Nifty Financial Services",
+            "NSE:FINNIFTY-INDEX": "Nifty Fin Service",
             "NSE:NIFTYREALTY-INDEX": "Nifty Realty",
             "NSE:NIFTY500-INDEX": "Nifty 500",
             "NSE:NIFTY500MULTICAP-INDEX": "Nifty500 Multicap",
@@ -361,13 +361,19 @@ async def main():
     'NSE:NIFTY50DIVPOINT-INDEX',
     'NSE:NIFTYGROWSECT15-INDEX'
 ]
+    # symbols = ['NSE:FINNIFTY-INDEX']
     client_id = "XC4EOD67IM-100"
-    access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODYwMjUyMTgsImV4cCI6MTY4NjA5NzgxOCwibmJmIjoxNjg2MDI1MjE4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2ZyUUNYQ1ctaWR0bE1HZ05RQTFtdVRwdmhCbWxKSHl0T3NMVHlxLW42ZURtYS1ldndqQUN2TTB2cG1WX0UtSmZfMnNWSEVMYVR3cUFSZkZjTDh6b3phWFh1NTBCd1M3UWhHZUNaUUt0Z2dhOG51UT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.6Myh68174ZB05aedLIRf62xDq7HRYV4xgRIxTm2fCig"
+    access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODYxMTIzMzUsImV4cCI6MTY4NjE4NDIxNSwibmJmIjoxNjg2MTEyMzM1LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2dBaFBFSW9SSFJuWUZMS0IzMHJ4VGRwLU82TnMyRlZFWFVjN3FrQU9UZTNBaDhQdllBQ3A2WVJzU3YxWGp5S2NIZE9LWUxaWFNQdWk5OGRjYlJGeElsMGhmd0RidFB4M0hKYmxaNVl1TkY5Qm5Tdz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.foZP2MaqeQk1eT2SP_df9mLnIUzLQ-It5spscyEyZYc"
 
     # access_token ="3fd5caefeb662931c6560cf5991b55e327f33ddf8ca0b2a1b0ed7165"
     # datadict = symbol_name(symbols)
     # symbols = ['NSE:BHARTIARTL-EQ',"BSE:100LARGECAPTMC-INDEX",]
+    def custom_message(msg):
+        # print(msg[0]["ltp"])
+        print (f"Customqwdaaseaev:{msg}") 
+    # if len(msg) > 1:
     client = FyersHsmSocket(access_token, litemode=False)
+    # client.error_data = custom_message
     connect_task = asyncio.create_task(client.subscribe(symbols,'SymbolUpdate'))
     # await asyncio.sleep(10)
     # symbols = ['NSE:FINNIFTY-INDEX']
@@ -470,6 +476,7 @@ symbols =[    'NSE:NIFTYBANK-INDEX',
     'NSE:NIFTY50DIVPOINT-INDEX',
     'NSE:NIFTYGROWSECT15-INDEX'
     ]
+symbols = ['NSE:FINNIFTY-INDEX']
 client_id = "XC4EOD67IM-100"
 access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODYwMjUyMTgsImV4cCI6MTY4NjA5NzgxOCwibmJmIjoxNjg2MDI1MjE4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2ZyUUNYQ1ctaWR0bE1HZ05RQTFtdVRwdmhCbWxKSHl0T3NMVHlxLW42ZURtYS1ldndqQUN2TTB2cG1WX0UtSmZfMnNWSEVMYVR3cUFSZkZjTDh6b3phWFh1NTBCd1M3UWhHZUNaUUt0Z2dhOG51UT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.6Myh68174ZB05aedLIRf62xDq7HRYV4xgRIxTm2fCig"
 

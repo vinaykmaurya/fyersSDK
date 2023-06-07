@@ -67,7 +67,7 @@ class SymbolConverstion():
             "NSE:NIFTYALPHA50-INDEX": "Nifty Alpha 50",
             "NSE:NIFTYPSE-INDEX": "Nifty PSE",
             "NSE:NIFTYFINSRV2550-INDEX": "Nifty Financial Services 25/50",
-            "NSE:FINNIFTY-INDEX": "Nifty Financial Services",
+            "NSE:FINNIFTY-INDEX": "Nifty Fin Service",
             "NSE:NIFTYREALTY-INDEX": "Nifty Realty",
             "NSE:NIFTY500-INDEX": "Nifty 500",
             "NSE:NIFTY500MULTICAP-INDEX": "Nifty500 Multicap",
@@ -210,6 +210,9 @@ class FyersHsmSocket():
         self.datatype = None
         self.ackCount = None
         self.updateCount = 0
+        self.OnMessage = None
+        self.OnError = None
+        self.OnOpen =  None
         self.lite = litemode
         self.output = {}
         self.literesp = {}
@@ -220,13 +223,17 @@ class FyersHsmSocket():
         self.message = []
         self.resp = {}
         self.symDict = {}
-        self.extra_data = {}
-        self.ErrResponse = {"code":0,"message":"","s":""}
+        self.ErrResponse = {"code":-99,"message":"","s":"error"}
         self.ack_bool = False
-        self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" 
-                        , "tot_buy_qty" , "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh", "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price",'symbol']
+        self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , 
+                        "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" , "tot_buy_qty" , 
+                        "tot_sell_qty" ,"avg_trade_price","OI","low_price","high_price" ,"Yhigh",
+                          "Ylow", "lowCircuit" , "upCircuit" ,"open_price", "close_price",'symbol']
+        
         self.indexVal = ['ltp', 'close_price', 'ExFeedTime', 'high_price', 'low_price', 'open_price', 'symbol']
+
         self.litename = ["ltp","vol_traded_today" , "last_traded_time", 'symbol' ]
+        
         self.depthvalue = ["bidPrice1","bidPrice2","bidPrice3","bidPrice4","bidPrice5",
                         "askPrice1", "askPrice2", "askPrice3", "askPrice4", "askPrice5", 
                         "bidsize1","bidsize2","bidsize3","bidsize4","bidsize5",
@@ -277,8 +284,9 @@ class FyersHsmSocket():
             return byte_buffer
         
         except Exception as e:
-            self.logger.error("Error While packing Token msg", e)
 
+            self.ErrResponse['message'] = "Error While packing Token msg"
+            self.On_error(self.ErrResponse)
 
     def full_mode_msg(self):
         try:
@@ -314,17 +322,13 @@ class FyersHsmSocket():
 
             return data    
         
-        except Exception as e:
-            self.logger.error("Error While packing Full mode msg", e)
-            return
+        except :
+
+            self.ErrResponse['message'] = "Error While packing Full mode msg"
+            self.On_error(self.ErrResponse)
         
     def subscription_msg(self):
         try:
-            # self.scrips = self.symbol_token.keys()
-
-
-
-            print(len(self.scrips))
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
             self.scripsData.append(len(self.scrips) & 0xFF)
@@ -354,8 +358,9 @@ class FyersHsmSocket():
             return buffer_msg
         
         except Exception as e:
-            self.logger.error("Error While packing Subscription msg", e)
-            return 
+
+            self.ErrResponse['message'] = "Error While packing Subscription msg"
+            self.On_error(self.ErrResponse) 
         
 
     async def unsubscription_msg(self,symbols):
@@ -392,9 +397,10 @@ class FyersHsmSocket():
 
             return buffer_msg
         
-        except Exception as e:
-            self.logger.error("Error While packing Unsubscription msg", e)
-            return 
+        except :
+
+            self.ErrResponse['message'] = "Error While packing Unsubscription msg"
+            self.On_error(self.ErrResponse)
         
 
     def ackowledgement_msg(self, messae_number):
@@ -414,9 +420,10 @@ class FyersHsmSocket():
             buffer_msg.extend(struct.pack('>H', field_size))
             buffer_msg.extend(struct.pack('>I', field_value))
             return buffer_msg
-        except Exception as e:
-            self.logger.error("Error While packing Ackowledgement msg", e)
-            return
+        
+        except:
+            self.ErrResponse['message'] = "Error While packing Ackowledgement msg"
+            self.On_error(self.ErrResponse)
 
     def auth_resp(self,response_msg):
         try:
@@ -431,7 +438,8 @@ class FyersHsmSocket():
             if string_val == "K":
                 print("Authentication done")
             else:
-                print("Authentication failed")
+                self.ErrResponse['message'] = "Authentication failed"
+                self.On_error(self.ErrResponse)
 
             field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
             offset += 1
@@ -441,9 +449,10 @@ class FyersHsmSocket():
             offset += 4
             json_obj = response_msg[offset:].decode()
             
-        except Exception as e:
-            self.logger.error("Error While Unpacking Auth msg", e)
-            return
+        except:
+
+            self.ErrResponse['message'] = "Error While Unpacking Auth message"
+            self.On_error(self.ErrResponse)
 
 
 
@@ -465,12 +474,13 @@ class FyersHsmSocket():
             if string_val == 'K':
                 print("Unsubscription done")
             else:
-                print("Unsubscription failed")
+                self.ErrResponse['message'] = "Unsubscription failed"
+                self.On_error(self.ErrResponse)
 
-            return
-        except Exception as e:
-            self.logger.error("Error While Unpacking unsubscribe msg", e)
-            return
+        except :
+
+            self.ErrResponse['message'] = "Error While Unpacking unsubscribe msg"
+            self.On_error(self.ErrResponse)
                        
     def full_mode_resp(self, response_msg):
         try:
@@ -495,23 +505,39 @@ class FyersHsmSocket():
 
                 if string_val == "K":
                     print("Full mode on")
+                    
                 else:
-                    print("Error in full mode connection")
+                   self.ErrResponse['message'] = "Error in full mode connection"
+                   self.On_error(self.ErrResponse)
+                   
             else:
-                print("No fields found in the response")
+                self.ErrResponse['message'] = "No fields found in the response"
+                self.On_error(self.ErrResponse)
 
-        except struct.error as e:
-            self.logger.error("Error while unpacking Full Mode message: %s", e)
-        except UnicodeDecodeError as e:
-            self.logger.error("Error decoding string value in Full Mode message: %s", e)
-        except Exception as e:
-            self.logger.error("Unexpected error in Full Mode response: %s", e)
+        except :
+
+            self.ErrResponse['message'] = 'Error while full mode connection'
+            self.On_error(self.ErrResponse)
 
 
-            
+    def On_message(self,message):
+        if self.OnMessage is not None:
+            self.OnMessage(message)
+        else:
+            print(f"Response : {message}") 
+
+    def On_error(self,message):
+        self.logger.error(message)
+        if self.OnError is not None:
+            self.OnError(message)
+        else:
+            print(f"Error Response : {message}")
+        
+    def On_open(self,websocket):
+        pass
+
     def response_output(self,data):
         dataResp = data
-        # print("-------precision-------",dataResp )
         response = {}
         if 'bidPrice1' not in dataResp and 'vol_traded_today' in dataResp and self.lite:
             # print(dataResp)
@@ -548,15 +574,8 @@ class FyersHsmSocket():
                     else:
                         response[val] = dataResp[val]
             
-            # if 'OI' in response:
-            #     response.pop('OI')
-            # if 'Yhigh' in response:
-            #     response.pop('Yhigh')
-            # if 'Ylow' in response:
-            #     response.pop('Ylow')
-            # response = dataResp
-        print("")
-        print(response)
+
+        self.On_message(response)
 
     def datafeed_resp(self,data):
         try:
@@ -575,7 +594,6 @@ class FyersHsmSocket():
                 dataType = struct.unpack('B', data[offset:offset+1])[0]
                 if dataType == 83: #Snapshot datafeed
                     self.output = {} 
-                    # self.extra_data = {}
                     offset += 1
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
@@ -670,11 +688,7 @@ class FyersHsmSocket():
                     pass
                 
         except Exception as e:
-            # pass
-            print(self.resp[self.symDict[topicId]])
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-            # self.logger.error("Error While Unpacking datafeed", e)
+            self.logger.error("Error While Unpacking datafeed", e)
     
 
 
@@ -709,10 +723,7 @@ class FyersHsmSocket():
         try:
             message = self.message.pop()
             await self.websocket.send(message)
-            print('----send msg--')
-
         except IndexError:
-            print('---pass---')
             pass
 
         asyncio.get_event_loop().call_later(1, lambda: asyncio.create_task(self.send_message()))
@@ -720,7 +731,6 @@ class FyersHsmSocket():
 
     async def send_ping(self):
         await self.websocket.ping()
-        print("------oing")
         asyncio.get_event_loop().call_later(10, lambda: asyncio.create_task(self.send_ping()))
     
     async def connectWS(self):
@@ -749,14 +759,13 @@ class FyersHsmSocket():
                     self.response_msg(response)
 
                     if self.ack_bool:
-                        print('ack---------------------------------------')
                         self.message.append(message)
                         self.ack_bool = False
             
         except Exception as e:
             # print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.logger.error('Error while connecting to websocket')
 
         # except KeyboardInterrupt:
         #    self.websocket.close()
@@ -773,7 +782,7 @@ class FyersHsmSocket():
             error_msg['s'] = 'error'
             error_msg['message'] = 'Could not authenticate the user '
             print(error_msg)
-        elif type(self.symbol_token[0]) == list:
+        elif type(self.symbol_token[0]) == list and len(self.symbol_token[0]) > 0:
             error_msg['code'] = -300
             error_msg['s'] = 'error'
             error_msg['message'] = 'Please provide a valid symbol'
@@ -795,7 +804,7 @@ class FyersHsmSocket():
             self.symbols = symbols
             # conv = SymbolConverstion(self.access_token, symbols, datatype)
             self.symbol_token = (self.check_auth_and_symbol())
-
+            print(self.symbol_token, '----------------------')
             self.scrips = list(self.symbol_token.keys())
 
             await self.connectWS()

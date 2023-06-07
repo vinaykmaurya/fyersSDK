@@ -19,6 +19,10 @@ class FyersSocket:
         self.access_token = access_token
         self.log_path = log_path
         self.run_background = run_background
+        self.OnMessage = None
+        self.OnError = None
+        self.OnOpen =  None
+        self.ErrResponse = {"code":-99,"message":"","s":"error"}
         self.logger_setup()
         self.websocket_task = None
         self.logger.info("Initiate socket object")
@@ -50,9 +54,8 @@ class FyersSocket:
                 "d": position_data,
             }
         except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.ErrResponse['message'] = 'Error while parshing position data'
+            self.On_error(self.ErrResponse)
 
     def parse_trade_data(self, msg):
         try:
@@ -67,10 +70,10 @@ class FyersSocket:
                 "d": trade_data,
             }
         except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-    
+            self.ErrResponse['message'] = 'Error while parshing trade data'
+            self.On_error(self.ErrResponse)
+
+
     def parse_orderUpdate_data(self, msg):
         try:
             keyMap = {
@@ -109,35 +112,58 @@ class FyersSocket:
                 "d": order_data,
             }
         except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            logging.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.ErrResponse['message'] = 'Error while parshing order data'
+            self.On_error(self.ErrResponse)
 
-    async def ScoketConnect(self,data_type):
-        self.data_type = [self.socket_type[(type)] for type in data_type.split(",")]
-        async with websockets.connect(
-                "wss://socket.fyers.in/trade/v3",
-                extra_headers={"authorization": self.access_token}
-        ) as websocket:
-            message = json.dumps({"T": "SUB_ORD", "SLIST": self.data_type, "SUB_T": 1})
-            await websocket.send(message)
-            while True:
-                msgRcv = await websocket.recv()
-                response = json.loads(msgRcv)
-                if "orders" in response:
-                    response = self.parse_orderUpdate_data(response)
-                elif "positions" in response:
-                    response = self.parse_position_data(response)
-                elif "trades" in response:
-                    response = self.parse_trade_data(response)
-                else:
-                    pass
-                
-                if self.run_background:
-                    self.logger.debug(f"Response:{response}")
-                else:
-                    print(f"Received response: {response}")
-                    self.logger.debug(f"Response:{response}")
+
+
+
+    def On_message(self,message):
+        if self.OnMessage is not None:
+            self.OnMessage(message)
+        else:
+            print(f"Response : {message}") 
+
+    def On_error(self,message):
+        self.logger.error(message)
+        if self.OnError is not None:
+            self.OnError(message)
+        else:
+            print(f"Error Response : {message}")
+        
+    def On_open(self,websocket):
+        pass
+
+
+
+    async def ScoketConnect(self):
+        try:
+            async with websockets.connect(
+                    "wss://socket.fyers.in/trade/v3",
+                    extra_headers={"authorization": self.access_token}
+            ) as websocket:
+                message = json.dumps({"T": "SUB_ORD", "SLIST": self.data_type, "SUB_T": 1})
+                await websocket.send(message)
+                while True:
+                    msgRcv = await websocket.recv()
+                    response = json.loads(msgRcv)
+                    if "orders" in response:
+                        response = self.parse_orderUpdate_data(response)
+                    elif "positions" in response:
+                        response = self.parse_position_data(response)
+                    elif "trades" in response:
+                        response = self.parse_trade_data(response)
+                    else:
+                        pass
+                    
+                    if self.run_background:
+                        self.logger.debug(f"Response:{response}")
+                    else:
+                        print(f"Received response: {response}")
+                        self.logger.debug(f"Response:{response}")
+        except :
+            self.ErrResponse['message'] = 'Error while conneting to websocket'
+            self.On_error(self.ErrResponse)
     
     # async def close(self):
     #     if self.websocket_task and not self.websocket_task.closed:
@@ -154,7 +180,7 @@ class FyersSocket:
         self.websocket_task = loop.create_task(self.ScoketConnect())
         websocket_task= self.websocket_task
         try:
-            loop.run_until_complete(websocket_task)
+            await websocket_task
         except KeyboardInterrupt:
             websocket_task.cancel()
             try:
@@ -209,12 +235,12 @@ class FyersSocket:
 
 async def main():
     client_id = "XC4EOD67IM-100"
-    access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU1MDYzMTIsImV4cCI6MTY4NTU3OTQ1MiwibmJmIjoxNjg1NTA2MzEyLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2Rza0lkcmpGWldPVHBkLUxseTU2dUd2N2NNd3MxY0ZtOWcwMi1wNUgtYmZhbUV6NmQzWWhxZlYzdlhLWUhCVUdTYUtlRlAzcHVJckFDQ3FJLXpjWUVhRDdVQ2ZQZnNQVjdZb0duY0Z3amg4blhhWT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.0er3yuQaHJk79nYOUHL1i-Ms8FHva8mBKF3lBQYuoBo"
+    access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODU1OTE2MTQsImV4cCI6MTY4NTY2NTgzNCwibmJmIjoxNjg1NTkxNjE0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2VCWS0wRFoyQmxtUkdOWTZkXzRaTEVFcHZoNGlocGVTSFNJQUdVLVhqS2huVGp0UkJweHB4RG41eW00Qm9EMUMtaGFEcHYtU0RydFRtdGNWTzFEZk5YSHVVVDAwVU4tUXNkLUFtX2FvRlJSOFFlQT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.I401r_TqG1e1SHekNbo1APWiNP3P4IvA_IBJaoWMbKY"
 
     fyers= FyersSocket(access_token,False , None)
-    connect_task = asyncio.create_task(fyers.ScoketConnect("OnOrders,OnTrades,OnPositions"))
+    connect_task = asyncio.create_task(fyers.subscribe("OnOrders,OnTrades,OnPositions"))
     await asyncio.sleep(10)
-    # await fyers.close()
+    await fyers.close()
 
     await connect_task
 
