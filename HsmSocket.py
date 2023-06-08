@@ -200,12 +200,12 @@ class SymbolConverstion():
 
 class FyersHsmSocket():
 
-    def __init__(self,access_token, log_path = None , litemode = False , channel = 1):
+    def __init__(self,access_token, log_path = None , litemode = False ):
         self.url = ""
         self.access_token = str(access_token)
         self.log_path = log_path
         self.Source = "PythonSDK-1.0.0"
-        self.channelNum = channel
+        self.channelNum = None
         self.channels = [1,2,3,4,5]
         self.datatype = None
         self.ackCount = None
@@ -217,6 +217,11 @@ class FyersHsmSocket():
         self.output = {}
         self.literesp = {}
         self.symbol_token = {}
+        self.scrips_count = {}
+        self.scrips_per_channel = {}
+        for i in range(1, 31):
+            self.scrips_per_channel[i] = []
+        self.active_channel = None
         self.logger_setup()
         self.logger.info("Initiate socket object")
         self.logger.debug('access_token ' + self.access_token)
@@ -326,9 +331,76 @@ class FyersHsmSocket():
 
             self.ErrResponse['message'] = "Error While packing Full mode msg"
             self.On_error(self.ErrResponse)
+
+
+
+    def channesl_pause_msg(self):
+        try:
+            data = bytearray()
+
+            data.extend(struct.pack('>H', 0))
+
+            data.extend(struct.pack('B', 7))
+
+            data.extend(struct.pack('B', 1))
+
+            channel_bits = 0
+            for channel_num in self.channels:
+                if channel_num < 64 and channel_num > 0:
+                    channel_bits |= 1 << channel_num
+            # Field-1
+            field_1 = bytearray()
+            field_1.extend(struct.pack('B', 1))   
+            field_1.extend(struct.pack('>H', 8))    
+            field_1.extend(struct.pack('>Q', channel_bits))  
+            data.extend(field_1)
+
+            data_length = len(data) - 2
+            data[0] = (data_length >> 8) & 0xFF
+            data[1] = data_length & 0xFF
+            return data    
+        
+        except :
+
+            self.ErrResponse['message'] = "Error While packing Unsubscribe msg"
+            self.On_error(self.ErrResponse)
+
+    def channesl_resume_msg(self):
+        try:
+            data = bytearray()
+
+            data.extend(struct.pack('>H', 0))
+
+            data.extend(struct.pack('B', 8))
+
+            data.extend(struct.pack('B', 1))
+
+            channel_bits = 0
+            for channel_num in self.channels:
+                if channel_num < 64 and channel_num > 0:
+                    channel_bits |= 1 << channel_num
+            # Field-1
+            field_1 = bytearray()
+            field_1.extend(struct.pack('B', 1))   
+            field_1.extend(struct.pack('>H', 8))    
+            field_1.extend(struct.pack('>Q', channel_bits))  
+            data.extend(field_1)
+
+            data_length = len(data) - 2
+            data[0] = (data_length >> 8) & 0xFF
+            data[1] = data_length & 0xFF
+            return data    
+        
+        except :
+
+            self.ErrResponse['message'] = "Error While packing Unsubscribe msg"
+            self.On_error(self.ErrResponse)
         
     def subscription_msg(self):
         try:
+            self.scrips_per_channel[self.channelNum] += self.scrips_count[self.channelNum]
+            self.scrips = self.scrips_per_channel[self.channelNum]
+            print('----------self.scrips_per_channel[self.channelNum]------',self.scrips_per_channel)
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
             self.scripsData.append(len(self.scrips) & 0xFF)
@@ -685,7 +757,8 @@ class FyersHsmSocket():
                     # print('---------------',self.resp[self.symDict[topicId]],'-------------')
                     self.response_output(self.resp[self.symDict[topicId]])
                 else:
-                    pass
+                    print(data)
+                    
                 
         except Exception as e:
             self.logger.error("Error While Unpacking datafeed", e)
@@ -735,7 +808,8 @@ class FyersHsmSocket():
     
     async def connectWS(self):
         try:
-            # if not self.error_flag:
+            
+            
             async with websockets.connect("wss://socket.fydev.tech/hsm/v1-5/dev" ) as websocket:
                 self.websocket = websocket
                 message = self.token_to_byte()
@@ -753,6 +827,7 @@ class FyersHsmSocket():
                 message = self.subscription_msg()
                 self.message.append(message)
                 asyncio.create_task(self.send_ping())
+                x = 1
                 while True:
                     response = await websocket.recv()
                     # print(response)
@@ -761,6 +836,22 @@ class FyersHsmSocket():
                     if self.ack_bool:
                         self.message.append(message)
                         self.ack_bool = False
+                    x+=1
+                    print(x)
+                    # if x ==10:
+                    #     data = self.channesl_pause_msg()
+                    #     print(data,'----------------------data--pause-------')
+                    #     self.message.append(data)
+                    #     response = await websocket.recv()
+                    #     print(response)
+                    #     self.response_msg(response)
+                        # await asyncio.sleep(5)
+                        # data = self.channesl_resume_msg()
+                        # self.message.append(data)
+                        # response = await websocket.recv()
+                        # print(response)
+                        # self.response_msg(response)
+
             
         except Exception as e:
             # print(e)
@@ -774,39 +865,43 @@ class FyersHsmSocket():
 
         conv = SymbolConverstion(self.access_token, self.symbols, self.datatype)
         error_msg = {}
-        self.symbol_token = conv.symbol_to_token()
-        print(self.symbol_token)
-        if 's' in self.symbol_token[0] and self.symbol_token[0]['s'] == 'error':
+        self.symbol_value = conv.symbol_to_token()
+        print(self.symbol_value)
+        if 's' in self.symbol_value[0] and self.symbol_value[0]['s'] == 'error':
             self.error_flag = True
             error_msg['code'] = -1600
             error_msg['s'] = 'error'
             error_msg['message'] = 'Could not authenticate the user '
             print(error_msg)
-        elif type(self.symbol_token[0]) == list and len(self.symbol_token[0]) > 0:
+        elif type(self.symbol_value[0]) == list and len(self.symbol_value[0]) > 0:
             error_msg['code'] = -300
             error_msg['s'] = 'error'
             error_msg['message'] = 'Please provide a valid symbol'
-            error_msg['symbols'] = self.symbol_token[0]
+            error_msg['symbols'] = self.symbol_value[0]
             print(error_msg)
-        return self.symbol_token[1]
+        return self.symbol_value[1]
+
+
+
+    # def symbol_count_check(self):
+
+    #     self.scrips_count[self.channelNum] = self.scrips
 
 
 
 
-
-
-
-
-    async def subscribe(self,symbols, datatype):
+    async def subscribe(self,symbols, datatype,  channel = 1):
 
         try:
             self.datatype = datatype
             self.symbols = symbols
-            # conv = SymbolConverstion(self.access_token, symbols, datatype)
+            self.channelNum = channel
             self.symbol_token = (self.check_auth_and_symbol())
-            print(self.symbol_token, '----------------------')
-            self.scrips = list(self.symbol_token.keys())
 
+            # print(self.symbol_token, '----------------------')
+            
+            self.scrips_count[self.channelNum] = list(self.symbol_token.keys())
+            # print('--------------self.scrips_count[self.channelNum]-----',self.scrips_count)
             await self.connectWS()
         except KeyboardInterrupt:
             tasks = asyncio.all_tasks()
