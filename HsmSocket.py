@@ -25,7 +25,7 @@ class SymbolConverstion():
     def symbol_to_token(self):   
 
         symbols =','.join(self.symbols)
-        print(len(self.symbols))
+        # print(len(self.symbols))
         client_id = ""
         
         fyers = FyersModelv3(token=self.access_token, is_async=False)
@@ -216,6 +216,7 @@ class FyersHsmSocket():
         self.lite = litemode
         self.output = {}
         self.literesp = {}
+        self.channel_symbol = []
         self.symbol_token = {}
         self.scrips_count = {}
         self.scrips_per_channel = {}
@@ -228,6 +229,9 @@ class FyersHsmSocket():
         self.message = []
         self.resp = {}
         self.symDict = {}
+        self.dp_sym = {}
+        self.index_sym = {}
+        self.scrips_sym = {}
         self.ErrResponse = {"code":-99,"message":"","s":"error"}
         self.ack_bool = False
         self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , 
@@ -295,7 +299,6 @@ class FyersHsmSocket():
 
     def full_mode_msg(self):
         try:
-            print(self.channelNum, '---------------list(self.channelNum)--------------------------------')
             self.channels = [self.channelNum]
             
 
@@ -331,8 +334,10 @@ class FyersHsmSocket():
 
             return data    
         
-        except :
-
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
             self.ErrResponse['message'] = "Error While packing Full mode msg"
             self.On_error(self.ErrResponse)
 
@@ -368,8 +373,10 @@ class FyersHsmSocket():
             self.message.append(data)
             # return data    
         
-        except :
-
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
             self.ErrResponse['message'] = "Error While packing pause msg"
             self.On_error(self.ErrResponse)
 
@@ -401,11 +408,13 @@ class FyersHsmSocket():
             data[0] = (data_length >> 8) & 0xFF
             data[1] = data_length & 0xFF
             self.message.append(data)
-            print('Channel Resumed : ', channel)
 
             # return data    
         
-        except :
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
 
             self.ErrResponse['message'] = "Error While packing resume msg"
             self.On_error(self.ErrResponse)
@@ -414,7 +423,7 @@ class FyersHsmSocket():
         try:
             self.scrips_per_channel[self.channelNum] += self.scrips_count[self.channelNum]
             self.scrips = self.scrips_per_channel[self.channelNum]
-            print('----------self.scrips_per_channel[self.channelNum]------',self.scrips_per_channel)
+            # print('----------self.scrips_per_channel[self.channelNum]------',self.scrips_per_channel)
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
             self.scripsData.append(len(self.scrips) & 0xFF)
@@ -552,11 +561,9 @@ class FyersHsmSocket():
             offset += 1
             field_length = struct.unpack('H', response_msg[offset:offset+2])[0]
             offset += 2
-            print(offset)
             # string_val = bytes(response_msg[offset:offset+field_length]).decode('latin-1')
             string_val = response_msg[offset:offset+1].decode('latin-1')
             offset += field_length
-            print(string_val)
             if string_val == 'K':
                 print("Unsubscription done")
             else:
@@ -567,7 +574,46 @@ class FyersHsmSocket():
 
             self.ErrResponse['message'] = "Error While Unpacking unsubscribe msg"
             self.On_error(self.ErrResponse)
-                       
+
+
+    def resume_pause_response_resp(self, response_msg,channeltype):
+        try:
+            offset = 3
+
+            # Unpack the field count
+            field_count = struct.unpack('!B', response_msg[offset:offset + 1])[0]
+            offset += 1
+
+
+            # Unpack the field ID
+            field_id = struct.unpack('!B', response_msg[offset:offset + 1])[0]
+            offset += 1
+
+            # Unpack the field length
+            field_length = struct.unpack('!H', response_msg[offset:offset + 2])[0]
+            offset += 2
+
+            # Extract the string value and decode it
+            string_val = response_msg[offset:offset + field_length].decode('utf-8')
+            offset += field_length
+            print(string_val)
+            if string_val == "K":
+                if channeltype == 7:
+                    print("Channel Paused")
+                elif channeltype == 8:
+                    print("channel resumed")
+            else:
+                self.ErrResponse['message'] = "Error in Pausing Channel"
+                self.On_error(self.ErrResponse)
+
+
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.ErrResponse['message'] = 'Error while pausing channel'
+            self.On_error(self.ErrResponse)        
+
     def full_mode_resp(self, response_msg):
         try:
             offset = 3
@@ -600,8 +646,10 @@ class FyersHsmSocket():
                 self.ErrResponse['message'] = "No fields found in the response"
                 self.On_error(self.ErrResponse)
 
-        except :
-
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
             self.ErrResponse['message'] = 'Error while full mode connection'
             self.On_error(self.ErrResponse)
 
@@ -628,6 +676,7 @@ class FyersHsmSocket():
         if self.OnMessage is not None:
             self.OnMessage(message)
         else:
+            print('')
             print(f"Response : {message}") 
 
     def On_error(self,message):
@@ -638,13 +687,14 @@ class FyersHsmSocket():
             print(f"Error Response : {message}")
         
     def On_open(self):
-        if self.On_open is not None:
+        if self.OnOpen == None or self.OnOpen == False:
             message = self.token_to_byte()
             self.message.append(message)
+            self.OnOpen = True
         else:
             pass
 
-    def response_output(self,data):
+    def response_output(self,data, datatype):
         dataResp = data
         response = {}
         if 'bidPrice1' not in dataResp and 'vol_traded_today' in dataResp and self.lite:
@@ -655,14 +705,14 @@ class FyersHsmSocket():
                 else:
                     response[val] = dataResp[val]
         else:
-            if 'bidPrice1' in dataResp:
+            if datatype == 'depth':
 
                 for i , val in enumerate(self.depthvalue):
                     if val in dataResp and i < 10:
                         response[val] = dataResp[val] / (10 ** dataResp['precision']) 
                     else:
                         response[val] = dataResp[val]
-            elif 'askSize' in dataResp:
+            elif datatype == 'scrips':
                 for i , val in enumerate(self.dataVal):
                     if val in dataResp and i in [0,6,7,11,13,14,17,18,19,20]:
                         response[val] = dataResp[val] / (10 ** dataResp['precision']) 
@@ -683,7 +733,7 @@ class FyersHsmSocket():
                         response[val] = dataResp[val]
             
 
-        self.On_message(response)
+        self.On_message(data)
 
     def datafeed_resp(self,data):
         try:
@@ -697,8 +747,6 @@ class FyersHsmSocket():
                     updateCount = 0
             scripCount = struct.unpack('!H', data[7:9])[0]
             offset = 9
-
-            print('-----------self.symDict--------',self.symDict)
 
             for _ in range(scripCount):
                 dataType = struct.unpack('B', data[offset:offset+1])[0]
@@ -714,74 +762,155 @@ class FyersHsmSocket():
                     offset += topicNameLength
 
                     # Maintaining dict - topicId : topicName
-                    self.symDict[topicId] = topicName
-                    # fieldCount - 21 in scrips , 25 in depth , 6 in index
-                    fieldCount = struct.unpack('B', data[offset:offset+1])[0]
-                    offset += 1
+                    # self.symDict[topicId] = topicName
+                    if topicName[:2] == 'dp':
+                        self.dp_sym[topicId] = topicName
+                        self.resp[self.dp_sym[topicId]] = {}
 
-                    for index in range(fieldCount):
-                        value = struct.unpack('>I', data[offset:offset+4])[0]
-                        offset += 4
-                        if fieldCount == 21:
-                            self.output[self.dataVal[index]] = value
-
-                        elif fieldCount == 6:
-                            self.output[self.indexVal[index]] = value
-
-                        else:
-                            self.output[self.depthvalue[index]] = value 
-
-                    stringFieldLength = struct.unpack('H', data[offset:offset+2])[0]
-                    offset += 2
-
-                    multiplier = struct.unpack('H', data[offset:offset+2])[0]
-                    self.output["multiplier"] = multiplier
-                    offset += 2
-
-                    precision = struct.unpack('B', data[offset:offset+1])[0]
-                    self.output["precision"] = precision
-                    offset += 1
-
-                    val = ["exchange", "exchange_token", "symbol"]
-                    for i in range(3):
-                        stringLength = struct.unpack('B', data[offset:offset+1])[0]
+                        fieldCount = struct.unpack('B', data[offset:offset+1])[0]
                         offset += 1
-                        stringData = data[offset:offset+stringLength].decode('utf-8')
-                        self.output[val[i]] = stringData
-                        offset += stringLength
-                    self.output['symbol'] = self.symbol_token[self.symDict[topicId]]
-                    self.resp[self.symDict[topicId]] = self.output
 
-                    self.response_output(self.resp[self.symDict[topicId]])
+                        for index in range(fieldCount):
+                            value = struct.unpack('>I', data[offset:offset+4])[0]
+                            offset += 4
+                            self.resp[self.dp_sym[topicId]][self.depthvalue[index]] = value 
+
+                        stringFieldLength = struct.unpack('H', data[offset:offset+2])[0]
+                        offset += 2
+
+                        multiplier = struct.unpack('H', data[offset:offset+2])[0]
+                        self.resp[self.dp_sym[topicId]]["multiplier"] = multiplier
+                        offset += 2
+
+                        precision = struct.unpack('B', data[offset:offset+1])[0]
+                        self.resp[self.dp_sym[topicId]]["precision"] = precision
+                        offset += 1
+
+                        val = ["exchange", "exchange_token", "symbol"]
+                        for i in range(3):
+                            stringLength = struct.unpack('B', data[offset:offset+1])[0]
+                            offset += 1
+                            stringData = data[offset:offset+stringLength].decode('utf-8')
+                            self.resp[self.dp_sym[topicId]][val[i]] = stringData
+                            offset += stringLength
+                        self.resp[topicName]['symbol'] = self.symbol_token[topicName]
+                        self.response_output(self.resp[self.dp_sym[topicId]],'depth')
+
+
+
+
+                    elif topicName[:2] == 'if':
+
+                        self.index_sym[topicId] = topicName
+                        self.resp[self.index_sym[topicId]] = {}
+
+                         # fieldCount - 21 in scrips , 25 in depth , 6 in index
+                        fieldCount = struct.unpack('B', data[offset:offset+1])[0]
+                        offset += 1
+
+                        for index in range(fieldCount):
+                            value = struct.unpack('>I', data[offset:offset+4])[0]
+                            offset += 4
+
+                            self.resp[self.index_sym[topicId]][self.indexVal[index]] = value
+
+
+                        stringFieldLength = struct.unpack('H', data[offset:offset+2])[0]
+                        offset += 2
+
+                        multiplier = struct.unpack('H', data[offset:offset+2])[0]
+                        self.resp[self.index_sym[topicId]]["multiplier"] = multiplier
+                        offset += 2
+
+                        precision = struct.unpack('B', data[offset:offset+1])[0]
+                        self.resp[self.index_sym[topicId]]["precision"] = precision
+                        offset += 1
+
+                        val = ["exchange", "exchange_token", "symbol"]
+                        for i in range(3):
+                            stringLength = struct.unpack('B', data[offset:offset+1])[0]
+                            offset += 1
+                            stringData = data[offset:offset+stringLength].decode('utf-8')
+                            self.resp[self.index_sym[topicId]][val[i]] = stringData
+                            offset += stringLength
+                        # print('\n',self.symbol_token, '\n')
+                        self.resp[topicName]['symbol'] = self.symbol_token[topicName]
+
+                        self.response_output(self.resp[self.index_sym[topicId]],'index')
+
+
+
+
+                    elif topicName[:2] == 'sf':
+                        self.scrips_sym[topicId] = topicName
+                        self.resp[self.scrips_sym[topicId]] = {}
+
+                        # fieldCount - 21 in scrips , 25 in depth , 6 in index
+                        fieldCount = struct.unpack('B', data[offset:offset+1])[0]
+                        offset += 1
+
+                        for index in range(fieldCount):
+                            value = struct.unpack('>I', data[offset:offset+4])[0]
+                            offset += 4
+                            self.resp[self.scrips_sym[topicId]][self.dataVal[index]] = value
+
+                        stringFieldLength = struct.unpack('H', data[offset:offset+2])[0]
+                        offset += 2
+
+                        multiplier = struct.unpack('H', data[offset:offset+2])[0]
+                        self.resp[self.scrips_sym[topicId]]["multiplier"] = multiplier
+                        offset += 2
+
+                        precision = struct.unpack('B', data[offset:offset+1])[0]
+                        self.resp[self.scrips_sym[topicId]]["precision"] = precision
+                        offset += 1
+                        val = ["exchange", "exchange_token", "symbol"]
+                        for i in range(3):
+                            stringLength = struct.unpack('B', data[offset:offset+1])[0]
+                            offset += 1
+                            stringData = data[offset:offset+stringLength].decode('utf-8')
+                            self.resp[self.scrips_sym[topicId]][val[i]] = stringData
+                            offset += stringLength
+                        self.resp[topicName]['symbol'] = self.symbol_token[topicName]
+
+                        self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
                     
                 elif dataType == 85: #Full mode darafeed
-
                     offset += 1
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
 
                     fieldCount = struct.unpack('B', data[offset:offset+1])[0]
                     offset += 1
-                    
+                    sf_flag , idx_flag , dp_flag = False, False,False
+
                     for index in range(fieldCount):
                         value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
                         if fieldCount == 21:
-
-                            self.resp[self.symDict[topicId]][self.dataVal[index]] = value
+                            self.resp[self.scrips_sym[topicId]][self.dataVal[index]] = value
+                            sf_flag = True
                         elif fieldCount == 6:
-                            self.resp[self.symDict[topicId]][self.indexVal[index]] = value
+                            self.resp[self.index_sym[topicId]][self.indexVal[index]] = value
+                            idx_flag = True
                         else:
-                            self.resp[self.symDict[topicId]][self.depthvalue[index]] = value
-                    print('----lenself.resp---',len(self.resp),'\n')
-                    
-                    self.response_output(self.resp[self.symDict[topicId]])
+                            self.resp[self.dp_sym[topicId]][self.depthvalue[index]] = value
+                            dp_flag = True
+
+                    if sf_flag:
+                        self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
+                    elif idx_flag:
+                        self.response_output(self.resp[self.index_sym[topicId]],'index')
+                    elif dp_flag:
+                        self.response_output(self.resp[self.dp_sym[topicId]],'depth')
+
                     
                 elif dataType == 76: #lite mode datafeed
 
                     offset += 1
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
+                    sf_flag , idx_flag , dp_flag = False, False,False
 
                     # self.literesp[self.symDict[topicId]] = {}
 
@@ -799,8 +928,10 @@ class FyersHsmSocket():
                     
                 
         except Exception as e:
-
-            self.ErrResponse['message'] = e + "Error While Unpacking datafeed"
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.ErrResponse['message'] = "Error While Unpacking datafeed"
             self.On_error(self.ErrResponse)
 
 
@@ -824,7 +955,12 @@ class FyersHsmSocket():
             self.datafeed_resp(data)
         
         elif respType == 5:
-            self.unsubscribe_resp()
+            self.unsubscribe_resp(data)
+
+        elif respType == 7 or respType == 8:
+            self.resume_pause_response_resp(data , respType)
+        
+
 
          
     async def close(self):
@@ -855,7 +991,6 @@ class FyersHsmSocket():
                 await self.send_message()
                 response = await websocket.recv()
                 self.response_msg(response)
-                # self.lite = True
                 if not self.lite:
                     message = self.full_mode_msg()
                     self.message.append(message)
@@ -865,24 +1000,23 @@ class FyersHsmSocket():
                 message = self.subscription_msg()
                 self.message.append(message)
                 asyncio.create_task(self.send_ping())
-                x = 1
                 while True:
                     response = await websocket.recv()
-                    # print(response)
                     self.response_msg(response)
 
                     if self.ack_bool:
                         self.message.append(message)
                         self.ack_bool = False
-                    x+=1
-                    print(x)
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+
 
 
             
-        except Exception as e:
-            # print(e)
-            self.ErrResponse['message'] = e + "Error While Connecting to webscoket"
-            self.On_error(self.ErrResponse)
+
+
         # except KeyboardInterrupt:
         #    self.websocket.close()
 
@@ -891,7 +1025,7 @@ class FyersHsmSocket():
         conv = SymbolConverstion(self.access_token, self.symbols, self.datatype)
         error_msg = {}
         self.symbol_value = conv.symbol_to_token()
-        print(self.symbol_value)
+        # print(self.symbol_value)
         if 's' in self.symbol_value[0] and self.symbol_value[0]['s'] == 'error':
             self.error_flag = True
             error_msg['code'] = -1600
@@ -921,13 +1055,12 @@ class FyersHsmSocket():
             self.datatype = datatype
             self.symbols = symbols
             self.channelNum = channel
-            self.symbol_token = (self.check_auth_and_symbol())
+            self.channel_symbol = self.check_auth_and_symbol()
+            self.symbol_token = dict(self.symbol_token  | self.channel_symbol) 
             self.pause_resume_channel()
 
-            # print(self.symbol_token, '----------------------')
             
-            self.scrips_count[self.channelNum] = list(self.symbol_token.keys())
-            # print('--------------self.scrips_count[self.channelNum]-----',self.scrips_count)
+            self.scrips_count[self.channelNum] = list(self.channel_symbol.keys())
             await self.connectWS()
         except KeyboardInterrupt:
             tasks = asyncio.all_tasks()

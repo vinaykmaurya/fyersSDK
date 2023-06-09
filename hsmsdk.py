@@ -438,10 +438,10 @@ async def main():
     'NSE:NIFTYSMLCAP250-INDEX',
     ]
 
-    symbols = ['NSE:FINNIFTY-INDEX'  ,
+    # symbols = ['NSE:FINNIFTY-INDEX'  ,
     # 'NSE:TITAN-EQ',
     # 'NSE:ULTRACEMCO-EQ',
-    ]
+    # ]
     client_id = "XC4EOD67IM-100"
     access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODYyODYxMzQsImV4cCI6MTY4NjM1NzA1NCwibmJmIjoxNjg2Mjg2MTM0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2dxODJKU1ljcTNyeXVMQkU1V21aUzJkRzZjWWhVaHg3MW9pWWxJVnMwRC1ncHVWaGZfWjdwZ0I5VFIwdHZlc18xT0ptUHV6ZG1pMHM1ckV2WEFOYWkzYmtnNER0OUMzSXhYSF9iOEhSaFB5S1lsND0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.wty6GXA27EZNTZtk_dWiPKr8BA2B4MwJg-uvepymJzg"
 
@@ -454,20 +454,20 @@ async def main():
     # if len(msg) > 1:
     client = FyersHsmSocket(access_token)
     # client.error_data = custom_message
-    connect_task = asyncio.create_task(client.subscribe(symbols,'SymbolUpdate',litemode=True))
-    await asyncio.sleep(10)
-    # symbols = [    'NSE:IRFC-EQ',
-    # 'NSE:IDEA-EQ',
-    # 'NSE:TATACOMM-EQ',
-    # 'NSE:ZOMATO-EQ',
-    # 'NSE:PNB-EQ',
-    # 'NSE:BFINVEST-EQ',
-    # ]
-    # connect_task = asyncio.create_task(client.subscribe(symbols,'depthUpdate', channel=2))
+    # connect_task = asyncio.create_task(client.subscribe(symbols,'SymbolUpdate'))
+    # await asyncio.sleep(10)
+    symbols = [    'NSE:IRFC-EQ',
+    'NSE:IDEA-EQ',
+    'NSE:TATACOMM-EQ',
+    'NSE:ZOMATO-EQ',
+    'NSE:PNB-EQ',
+    'NSE:BFINVEST-EQ',
+    ]
+    connect_task = asyncio.create_task(client.subscribe(symbols,'depthUpdate', channel=2))
     # # # connect_task = asyncio.create_task(client.channesl_pause_msg())
-    # await asyncio.sleep(5)
-    # # symbols = [    'NSE:USDINR23609FUT']
-    # connect_task = asyncio.create_task(client.subscribe(symbols,'SymbolUpdate', channel=1))
+    await asyncio.sleep(5)
+    symbols = [    'NSE:USDINR23609FUT',    'NSE:NIFTYPHARMA-INDEX',]
+    connect_task = asyncio.create_task(client.subscribe(symbols,'SymbolUpdate',channel=3))
     # # await asyncio.sleep(10)
     # # await fyers.close()
     # print('---------------------------------',list(datadict.keys())[:35])
