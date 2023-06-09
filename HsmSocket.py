@@ -206,7 +206,7 @@ class FyersHsmSocket():
         self.log_path = log_path
         self.Source = "PythonSDK-1.0.0"
         self.channelNum = None
-        self.channels = [1,2,3,4,5]
+        self.channels = []
         self.datatype = None
         self.ackCount = None
         self.updateCount = 0
@@ -295,6 +295,10 @@ class FyersHsmSocket():
 
     def full_mode_msg(self):
         try:
+            print(self.channelNum, '---------------list(self.channelNum)--------------------------------')
+            self.channels = [self.channelNum]
+            
+
             data = bytearray()
 
             data.extend(struct.pack('>H', 0))
@@ -334,8 +338,9 @@ class FyersHsmSocket():
 
 
 
-    def channesl_pause_msg(self):
+    def channesl_pause_msg(self,channel):
         try:
+            self.channels = [channel]
             data = bytearray()
 
             data.extend(struct.pack('>H', 0))
@@ -358,15 +363,21 @@ class FyersHsmSocket():
             data_length = len(data) - 2
             data[0] = (data_length >> 8) & 0xFF
             data[1] = data_length & 0xFF
-            return data    
+
+            print('Channel Paused : ', channel)
+            self.message.append(data)
+            # return data    
         
         except :
 
-            self.ErrResponse['message'] = "Error While packing Unsubscribe msg"
+            self.ErrResponse['message'] = "Error While packing pause msg"
             self.On_error(self.ErrResponse)
 
-    def channesl_resume_msg(self):
+    def channesl_resume_msg(self,channel):
         try:
+
+            self.channels = [channel]
+
             data = bytearray()
 
             data.extend(struct.pack('>H', 0))
@@ -389,11 +400,14 @@ class FyersHsmSocket():
             data_length = len(data) - 2
             data[0] = (data_length >> 8) & 0xFF
             data[1] = data_length & 0xFF
-            return data    
+            self.message.append(data)
+            print('Channel Resumed : ', channel)
+
+            # return data    
         
         except :
 
-            self.ErrResponse['message'] = "Error While packing Unsubscribe msg"
+            self.ErrResponse['message'] = "Error While packing resume msg"
             self.On_error(self.ErrResponse)
         
     def subscription_msg(self):
@@ -591,6 +605,24 @@ class FyersHsmSocket():
             self.ErrResponse['message'] = 'Error while full mode connection'
             self.On_error(self.ErrResponse)
 
+    def pause_resume_channel(self):
+
+        if self.active_channel == None:
+            self.active_channel = self.channelNum
+        elif self.active_channel == self.channelNum:
+            pass
+        elif self.active_channel != None and self.active_channel != self.channelNum:
+            self.channesl_pause_msg(self.active_channel)
+            self.channesl_resume_msg(self.channelNum)
+            self.active_channel = self.channelNum
+
+
+
+
+
+
+
+
 
     def On_message(self,message):
         if self.OnMessage is not None:
@@ -605,8 +637,12 @@ class FyersHsmSocket():
         else:
             print(f"Error Response : {message}")
         
-    def On_open(self,websocket):
-        pass
+    def On_open(self):
+        if self.On_open is not None:
+            message = self.token_to_byte()
+            self.message.append(message)
+        else:
+            pass
 
     def response_output(self,data):
         dataResp = data
@@ -660,8 +696,10 @@ class FyersHsmSocket():
                     self.ack_msg = self.ackowledgement_msg(msgNum)
                     updateCount = 0
             scripCount = struct.unpack('!H', data[7:9])[0]
-
             offset = 9
+
+            print('-----------self.symDict--------',self.symDict)
+
             for _ in range(scripCount):
                 dataType = struct.unpack('B', data[offset:offset+1])[0]
                 if dataType == 83: #Snapshot datafeed
@@ -761,8 +799,9 @@ class FyersHsmSocket():
                     
                 
         except Exception as e:
-            self.logger.error("Error While Unpacking datafeed", e)
-    
+
+            self.ErrResponse['message'] = e + "Error While Unpacking datafeed"
+            self.On_error(self.ErrResponse)
 
 
 
@@ -809,11 +848,10 @@ class FyersHsmSocket():
     async def connectWS(self):
         try:
             
-            
+
             async with websockets.connect("wss://socket.fydev.tech/hsm/v1-5/dev" ) as websocket:
                 self.websocket = websocket
-                message = self.token_to_byte()
-                self.message.append(message)
+                self.On_open()
                 await self.send_message()
                 response = await websocket.recv()
                 self.response_msg(response)
@@ -838,26 +876,13 @@ class FyersHsmSocket():
                         self.ack_bool = False
                     x+=1
                     print(x)
-                    # if x ==10:
-                    #     data = self.channesl_pause_msg()
-                    #     print(data,'----------------------data--pause-------')
-                    #     self.message.append(data)
-                    #     response = await websocket.recv()
-                    #     print(response)
-                    #     self.response_msg(response)
-                        # await asyncio.sleep(5)
-                        # data = self.channesl_resume_msg()
-                        # self.message.append(data)
-                        # response = await websocket.recv()
-                        # print(response)
-                        # self.response_msg(response)
+
 
             
         except Exception as e:
             # print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error('Error while connecting to websocket')
-
+            self.ErrResponse['message'] = e + "Error While Connecting to webscoket"
+            self.On_error(self.ErrResponse)
         # except KeyboardInterrupt:
         #    self.websocket.close()
 
@@ -890,13 +915,14 @@ class FyersHsmSocket():
 
 
 
-    async def subscribe(self,symbols, datatype,  channel = 1):
+    async def subscribe(self,symbols, datatype,  channel = 1,litemode=False):
 
         try:
             self.datatype = datatype
             self.symbols = symbols
             self.channelNum = channel
             self.symbol_token = (self.check_auth_and_symbol())
+            self.pause_resume_channel()
 
             # print(self.symbol_token, '----------------------')
             
