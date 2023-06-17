@@ -1,10 +1,13 @@
 import asyncio
+import threading
+import time
+import websocket
+from threading import Thread
 import logging
 from logging.config import dictConfig
 import os
 import struct
 import base64
-from ratelimiter import RateLimiter
 from fyerstest.fyersApi import SessionModel, FyersModelv3
 
 import sys
@@ -25,7 +28,7 @@ class SymbolConverstion():
     def symbol_to_token(self):   
 
         symbols =','.join(self.symbols)
-        # print(len(self.symbols))
+        print(len(self.symbols))
         client_id = ""
         
         fyers = FyersModelv3(token=self.access_token, is_async=False)
@@ -197,16 +200,21 @@ class SymbolConverstion():
             return [wrong_symbol , datadict]
         else:
             return [quotesData,{}]
+        
+
+
+
 
 class FyersHsmSocket():
 
     def __init__(self,access_token, log_path = None , litemode = False ):
-        self.url = ""
+        self.url = "wss://socket.fydev.tech/hsm/v1-5/dev"
         self.access_token = access_token 
         self.log_path = log_path
         self.Source = "PythonSDK-1.0.0"
         self.channelNum = None
         self.channels = []
+        self.running_channels = set()
         self.datatype = None
         self.ackCount = None
         self.updateCount = 0
@@ -215,6 +223,9 @@ class FyersHsmSocket():
         self.OnOpen =  None
         self.websocket = None
         self.lite = litemode
+        self.sleep = 0
+        
+        self.background_flag= True
         self.output = {}
         self.literesp = {}
         self.channel_symbol = []
@@ -222,6 +233,7 @@ class FyersHsmSocket():
         self.scrips_count = {}
         self.scrips_per_channel = {}
         self.start = False
+        self.unsub_symbol = []
         for i in range(1, 31):
             self.scrips_per_channel[i] = []
         self.active_channel = None
@@ -232,6 +244,7 @@ class FyersHsmSocket():
         self.error_flag = False
         self.resp = {}
         self.symDict = {}
+        self.__ws_object = None
         self.dp_sym = {}
         self.index_sym = {}
         self.scrips_sym = {}
@@ -294,17 +307,19 @@ class FyersHsmSocket():
             struct.pack_into(f"!{field4_size}s", byte_buffer, 18+field1_size, self.Source.encode())
 
             return byte_buffer
-        
         except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While packing Token msg", e)
 
-            self.ErrResponse['message'] = "Error While packing Token msg"
-            self.On_error(self.ErrResponse)
 
     def full_mode_msg(self):
         try:
-            self.channels = [self.channelNum,30]
-            
 
+            self.channels = [self.channelNum]
+            print('---channels full------',self.channels)
             data = bytearray()
 
             data.extend(struct.pack('>H', 0))
@@ -340,50 +355,218 @@ class FyersHsmSocket():
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-            # self.ErrResponse['message'] = "Error While packing Full mode msg"
-            # self.On_error(self.ErrResponse)
-
-
-
-    def channel_pause_msg(self,channel):
-        try:
-            self.channels = [channel]
-
-            data = bytearray()
-
-            data.extend(struct.pack('>H', 0))
-
-            data.extend(struct.pack('B', 7))
-
-            data.extend(struct.pack('B', 1))
-
-            channel_bits = 0
-            for channel_num in self.channels:
-                if channel_num < 64 and channel_num > 0:
-                    channel_bits |= 1 << channel_num
-            # Field-1
-            field_1 = bytearray()
-            field_1.extend(struct.pack('B', 1))   
-            field_1.extend(struct.pack('>H', 8))    
-            field_1.extend(struct.pack('>Q', channel_bits))  
-            data.extend(field_1)
-
-            data_length = len(data) - 2
-            data[0] = (data_length >> 8) & 0xFF
-            data[1] = data_length & 0xFF
-
-            print('Channel Paused : ', channel)
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While packing Full mode msg", e)
             return
-            # return data    
+        
+    def subscription_msg(self):
+        try:
+            # self.scrips = self.symbol_token.keys()
+            self.scrips_per_channel[self.channelNum] += self.scrips_count[self.channelNum]
+            self.scrips = self.scrips_count[self.channelNum]
+            print('----------self.scrips_per_channel[self.channelNum]------',self.scrips_per_channel)
+
+
+            print(len(self.scrips))
+            self.scripsData = bytearray()
+            self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
+            self.scripsData.append(len(self.scrips) & 0xFF)
+            for scrip in self.scrips:
+                scripBytes = str(scrip).encode("ascii")
+                self.scripsData.append(len(scripBytes))
+                self.scripsData.extend(scripBytes)
+
+            dataLen = 18 + len(self.scripsData) + len(self.access_token) + len(self.Source)
+            reqType = 4
+            fieldCount = 2
+            buffer_msg = bytearray()
+            buffer_msg.extend(struct.pack(">H", dataLen))
+            buffer_msg.append(reqType)
+            buffer_msg.append(fieldCount)
+
+            # Field-1
+            buffer_msg.append(1)
+            buffer_msg.extend(struct.pack(">H", len(self.scripsData)))
+            buffer_msg.extend(self.scripsData)
+
+            # Field-2
+            buffer_msg.append(2) 
+            buffer_msg.extend(struct.pack(">H", 1))
+            buffer_msg.append(self.channelNum)
+
+            return buffer_msg
         
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-            # self.ErrResponse['message'] = "Error While packing pause msg"
-            # self.On_error(self.ErrResponse)
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While packing Subscription msg", e)
+            return 
+        
 
+    def unsubscription_msg(self,scrips):
+        try:
+            scripsData = bytearray()
+            scripsData.append(len(scrips) >> 8 & 0xFF)
+            scripsData.append(len(scrips) & 0xFF)
+            for scrip in scrips:
+                scripBytes = str(scrip).encode("ascii")
+                scripsData.append(len(scripBytes))
+                scripsData.extend(scripBytes)
+
+            dataLen = 18 + len(scripsData) + len(self.access_token) + len(self.Source)
+            reqType = 5
+            fieldCount = 2
+            buffer_msg = bytearray()
+            buffer_msg.extend(struct.pack(">H", dataLen))
+            buffer_msg.append(reqType)
+            buffer_msg.append(fieldCount)
+
+            # Field-1
+            buffer_msg.append(1) 
+            buffer_msg.extend(struct.pack(">H", len(scripsData)))
+            buffer_msg.extend(scripsData)
+
+            # Field-2
+            buffer_msg.append(2) 
+            buffer_msg.extend(struct.pack(">H", 1))
+            buffer_msg.append(self.channelNum)
+            print(buffer_msg, 'unsubs message')
+            # self.message.append(buffer_msg)
+
+            return buffer_msg
+        
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While packing Unsubscription msg", e)
+            return 
+        
+
+    def ackowledgement_msg(self, messae_number):
+        try:
+            total_size = 11
+            req_type = 3
+            field_count = 1
+            field_id = 1
+            field_size = 4
+            field_value = messae_number
+            buffer_msg = bytearray()
+            # Pack the data into the byte array
+            buffer_msg.extend(struct.pack('>H', total_size - 2))
+            buffer_msg.extend(struct.pack('B', req_type))
+            buffer_msg.extend(struct.pack('B', field_count))
+            buffer_msg.extend(struct.pack('B', field_id))
+            buffer_msg.extend(struct.pack('>H', field_size))
+            buffer_msg.extend(struct.pack('>I', field_value))
+            return buffer_msg
+        
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While packing Ackowledgement msg", e)
+            return
+
+    def auth_resp(self,data):
+        try:
+            offset = 4
+            field_id = struct.unpack('!B', data[offset:offset+1])[0]
+            offset += 1
+            field_length = struct.unpack('!H', data[offset:offset+2])[0]
+            offset += 2
+            string_val = data[offset:offset+field_length].decode('utf-8')
+            offset += field_length
+
+            if string_val == "K":
+                print("Authentication done")
+            else:
+                print("Authentication failed")
+
+            field_id = struct.unpack('!B', data[offset:offset+1])[0]
+            offset += 1
+            field_length = struct.unpack('!H', data[offset:offset+2])[0]
+            offset += 2
+            self.ack_count = struct.unpack('>I', data[offset:offset+4])[0]
+            offset += 4
+            json_obj = data[offset:].decode()
+            
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While Unpacking Auth msg", e)
+            return
+
+
+
+    def unsubscribe_resp(self,data):
+        try:
+            print(data)
+            offset = 3
+            field_count = struct.unpack('B', data[offset:offset+1])[0]
+            offset += 1
+            field_id = struct.unpack('B', data[offset:offset+1])[0]
+            offset += 1
+            field_length = struct.unpack('H', data[offset:offset+2])[0]
+            offset += 2
+            print(offset)
+            # string_val = bytes(response_msg[offset:offset+field_length]).decode('latin-1')
+            string_val = data[offset:offset+1].decode('latin-1')
+            offset += field_length
+            print(string_val)
+            if string_val == 'K':
+                print("Unsubscription done")
+            else:
+                print("Unsubscription failed")
+
+            return
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While Unpacking unsubscribe msg", e)
+            return
+                       
+    def full_mode_resp(self, data):
+        try:
+            offset = 3
+
+            # Unpack the field count
+            field_count = struct.unpack('!B', data[offset:offset + 1])[0]
+            offset += 1
+
+            if field_count >= 1:
+                # Unpack the field ID
+                field_id = struct.unpack('!B', data[offset:offset + 1])[0]
+                offset += 1
+
+                # Unpack the field length
+                field_length = struct.unpack('!H', data[offset:offset + 2])[0]
+                offset += 2
+
+                # Extract the string value and decode it
+                string_val = data[offset:offset + field_length].decode('utf-8')
+                offset += field_length
+
+                if string_val == "K":
+                    print("Full mode on")
+                else:
+                    print("Error in full mode connection")
+            else:
+                print("No fields found in the response")
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
     def channel_resume_msg(self,channel):
         try:
 
@@ -412,10 +595,10 @@ class FyersHsmSocket():
             data[0] = (data_length >> 8) & 0xFF
             data[1] = data_length & 0xFF
 
-            print('Channel Resumed : ', channel)
+            # print('Channel Resumed : ', channel, '------------------------')
 
-            self.message.append(data)
-            return
+            # self.message.append(data)
+            return data
             # return data    
         
         except Exception as e:
@@ -424,289 +607,48 @@ class FyersHsmSocket():
             self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
             self.ErrResponse['message'] = "Error While packing resume msg"
             self.On_error(self.ErrResponse)
-        
-    def subscription_msg(self):
+
+    def channel_pause_msg(self,channel):
         try:
-            self.scrips_per_channel[self.channelNum] += self.scrips_count[self.channelNum]
-            self.scrips = self.scrips_count[self.channelNum]
-            print('----------self.scrips_per_channel[self.channelNum]------',self.scrips_count[self.channelNum])
-            self.scripsData = bytearray()
-            self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
-            self.scripsData.append(len(self.scrips) & 0xFF)
-            for scrip in self.scrips:
-                scripBytes = str(scrip).encode("ascii")
-                self.scripsData.append(len(scripBytes))
-                self.scripsData.extend(scripBytes)
+            self.channels = [channel]
 
-            dataLen = 18 + len(self.scripsData) + len(self.access_token) + len(self.Source)
-            reqType = 4
-            fieldCount = 2
-            buffer_msg = bytearray()
-            buffer_msg.extend(struct.pack(">H", dataLen))
-            buffer_msg.append(reqType)
-            buffer_msg.append(fieldCount)
+            data = bytearray()
 
+            data.extend(struct.pack('>H', 0))
+
+            data.extend(struct.pack('B', 7))
+
+            data.extend(struct.pack('B', 1))
+
+            channel_bits = 0
+            for channel_num in self.channels:
+                if channel_num < 64 and channel_num > 0:
+                    channel_bits |= 1 << channel_num
             # Field-1
-            buffer_msg.append(1)
-            buffer_msg.extend(struct.pack(">H", len(self.scripsData)))
-            buffer_msg.extend(self.scripsData)
+            field_1 = bytearray()
+            field_1.extend(struct.pack('B', 1))   
+            field_1.extend(struct.pack('>H', 8))    
+            field_1.extend(struct.pack('>Q', channel_bits))  
+            data.extend(field_1)
 
-            # Field-2
-            buffer_msg.append(2) 
-            buffer_msg.extend(struct.pack(">H", 1))
-            buffer_msg.append(self.channelNum)
-            print(buffer_msg)
+            data_length = len(data) - 2
+            data[0] = (data_length >> 8) & 0xFF
+            data[1] = data_length & 0xFF
 
-            return
-        
+            # print('Channel Paused : ', channel,'------------------------------')
+            return data
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+    def On_message(self,message):
+        if self.OnMessage is not None:
+            self.OnMessage(message)
+        else:
+            print('')
+            print(f"Response : {message}") 
 
-            # self.ErrResponse['message'] = "Error While packing Subscription msg"
-            # self.On_error(self.ErrResponse) 
-        
-
-    async def unsubscription_msg(self,symbols):
-        try:
-            conv = SymbolConverstion(self.access_token,symbols,self.datatype)
-            scrips = list(conv.symbol_to_token().keys())
-            scripsData = bytearray()
-            scripsData.append(len(scrips) >> 8 & 0xFF)
-            scripsData.append(len(scrips) & 0xFF)
-            for scrip in scrips:
-                scripBytes = str(scrip).encode("ascii")
-                scripsData.append(len(scripBytes))
-                scripsData.extend(scripBytes)
-
-            dataLen = 18 + len(scripsData) + len(self.access_token) + len(self.Source)
-            reqType = 5
-            fieldCount = 2
-            buffer_msg = bytearray()
-            buffer_msg.extend(struct.pack(">H", dataLen))
-            buffer_msg.append(reqType)
-            buffer_msg.append(fieldCount)
-
-            # Field-1
-            buffer_msg.append(1) 
-            buffer_msg.extend(struct.pack(">H", len(scripsData)))
-            buffer_msg.extend(scripsData)
-
-            # Field-2
-            buffer_msg.append(2) 
-            buffer_msg.extend(struct.pack(">H", 1))
-            buffer_msg.append(self.channelNum)
-
-            self.message.append(buffer_msg)
-
-            return buffer_msg
-        
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-
-            # self.ErrResponse['message'] = "Error While packing Unsubscription msg"
-            # self.On_error(self.ErrResponse)
-        
-
-    def ackowledgement_msg(self, messae_number):
-        try:
-            total_size = 11
-            req_type = 3
-            field_count = 1
-            field_id = 1
-            field_size = 4
-            field_value = messae_number
-            buffer_msg = bytearray()
-            # Pack the data into the byte array
-            buffer_msg.extend(struct.pack('>H', total_size - 2))
-            buffer_msg.extend(struct.pack('B', req_type))
-            buffer_msg.extend(struct.pack('B', field_count))
-            buffer_msg.extend(struct.pack('B', field_id))
-            buffer_msg.extend(struct.pack('>H', field_size))
-            buffer_msg.extend(struct.pack('>I', field_value))
-            return buffer_msg
-        
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-            # self.ErrResponse['message'] = "Error While packing Ackowledgement msg"
-            # self.On_error(self.ErrResponse)
-
-    def auth_resp(self,response_msg):
-        try:
-            offset = 4
-            field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
-            offset += 1
-            field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
-            offset += 2
-            string_val = response_msg[offset:offset+field_length].decode('utf-8')
-            offset += field_length
-
-            if string_val == "K":
-                print("Authentication done")
-            else:
-                self.ErrResponse['message'] = "Authentication failed"
-                self.On_error(self.ErrResponse)
-
-            field_id = struct.unpack('!B', response_msg[offset:offset+1])[0]
-            offset += 1
-            field_length = struct.unpack('!H', response_msg[offset:offset+2])[0]
-            offset += 2
-            self.ack_count = struct.unpack('>I', response_msg[offset:offset+4])[0]
-            offset += 4
-            json_obj = response_msg[offset:].decode()
-            
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-
-            # self.ErrResponse['message'] = "Error While Unpacking Auth message"
-            # self.On_error(self.ErrResponse)
-
-
-
-    def unsubscribe_resp(self,response_msg):
-        try:
-            print(response_msg)
-            offset = 3
-            field_count = struct.unpack('B', response_msg[offset:offset+1])[0]
-            offset += 1
-            field_id = struct.unpack('B', response_msg[offset:offset+1])[0]
-            offset += 1
-            field_length = struct.unpack('H', response_msg[offset:offset+2])[0]
-            offset += 2
-            # string_val = bytes(response_msg[offset:offset+field_length]).decode('latin-1')
-            string_val = response_msg[offset:offset+1].decode('latin-1')
-            offset += field_length
-            if string_val == 'K':
-                print("Unsubscription done")
-            else:
-                self.ErrResponse['message'] = "Unsubscription failed"
-                self.On_error(self.ErrResponse)
-
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-
-            # self.ErrResponse['message'] = "Error While Unpacking unsubscribe msg"
-            # self.On_error(self.ErrResponse)
-
-
-    def resume_pause_response_resp(self, response_msg,channeltype):
-        try:
-            offset = 3
-
-            # Unpack the field count
-            field_count = struct.unpack('!B', response_msg[offset:offset + 1])[0]
-            offset += 1
-
-
-            # Unpack the field ID
-            field_id = struct.unpack('!B', response_msg[offset:offset + 1])[0]
-            offset += 1
-
-            # Unpack the field length
-            field_length = struct.unpack('!H', response_msg[offset:offset + 2])[0]
-            offset += 2
-
-            # Extract the string value and decode it
-            string_val = response_msg[offset:offset + field_length].decode('utf-8')
-            offset += field_length
-            print(string_val)
-            if string_val == "K":
-                if channeltype == 7:
-                    print("Channel Paused")
-                elif channeltype == 8:
-                    print("channel resumed")
-            else:
-                if channeltype == 7:
-                    self.ErrResponse['message'] = "Channel not paused"
-                    self.On_error(self.ErrResponse)
-                elif channeltype == 8:
-                    self.ErrResponse['message'] = "Channel not Resumed"
-                    self.On_error(self.ErrResponse)
-                
-
-
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-            # self.ErrResponse['message'] = 'Error while pausing channel'
-            # self.On_error(self.ErrResponse)        
-
-    def full_mode_resp(self, response_msg):
-        try:
-            offset = 3
-
-            # Unpack the field count
-            field_count = struct.unpack('!B', response_msg[offset:offset + 1])[0]
-            offset += 1
-
-            if field_count >= 1:
-                # Unpack the field ID
-                field_id = struct.unpack('!B', response_msg[offset:offset + 1])[0]
-                offset += 1
-
-                # Unpack the field length
-                field_length = struct.unpack('!H', response_msg[offset:offset + 2])[0]
-                offset += 2
-
-                # Extract the string value and decode it
-                string_val = response_msg[offset:offset + field_length].decode('utf-8')
-                offset += field_length
-
-                if string_val == "K":
-                    print("Full mode on")
-                    
-                else:
-                   self.ErrResponse['message'] = "full mode connection not on"
-                   self.On_error(self.ErrResponse)
-                   
-            else:
-                self.ErrResponse['message'] = "No fields found in the response"
-                self.On_error(self.ErrResponse)
-
-        except Exception as e:
-            print(e)
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("Error while full mode connection :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
-            # self.ErrResponse['message'] = 'Error while full mode connection'
-            # self.On_error(self.ErrResponse)
-
-    def pause_resume_channel(self):
-
-        if self.active_channel == None:
-            self.active_channel = self.channelNum
-        elif self.active_channel == self.channelNum:
-            pass
-        elif self.active_channel != None and self.active_channel != self.channelNum:
-            self.channel_pause_msg(self.active_channel)
-            self.channel_resume_msg(self.channelNum)
-            self.active_channel = self.channelNum
-
-
-
-
-
-
-
-
-
-        # if self.active_channel == None:
-        #     self.active_channel = self.channelNum
-        # elif self.active_channel == self.channelNum:
-        #     pass
-        # elif self.active_channel != None and self.active_channel != self.channelNum:
-        #     self.channel_pause_msg(self.active_channel)
-        #     self.channel_resume_msg(self.channelNum)
-        #     self.active_channel = self.channelNum
 
     def response_output(self,data, datatype):
         dataResp = data
@@ -747,7 +689,10 @@ class FyersHsmSocket():
                         response[val] = dataResp[val]
             
 
-        self.On_message(data)
+        self.On_message(response)
+
+
+
 
     def datafeed_resp(self,data):
         try:
@@ -853,6 +798,8 @@ class FyersHsmSocket():
                         self.response_output(self.resp[self.index_sym[topicId]],'index')
 
 
+
+
                     elif topicName[:2] == 'sf':
                         self.scrips_sym[topicId] = topicName
                         self.resp[self.scrips_sym[topicId]] = {}
@@ -924,35 +871,79 @@ class FyersHsmSocket():
                     offset += 2
                     sf_flag , idx_flag , dp_flag = False, False,False
 
+                    # self.literesp[self.symDict[topicId]] = {}
+
                     for index in range(3):
                         value = struct.unpack('>I', data[offset:offset+4])[0]
                         offset += 4
                         self.resp[self.symDict[topicId]][self.dataVal[index]] = value 
 
+                    # self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
+                    # self.resp[self.symDict[topicId]]['precision']  = self.resp[self.symDict[topicId]]['precision']
+                    # print('---------------',self.resp[self.symDict[topicId]],'-------------')
                     self.response_output(self.resp[self.symDict[topicId]])
                 else:
-                    print(data)
-                    
+                    pass                    
                 
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
             self.ErrResponse['message'] = "Error While Unpacking datafeed"
             self.On_error(self.ErrResponse)
 
 
 
+    def resume_pause_response_resp(self, data,channeltype):
+        try:
+            offset = 3
+            print("channel pause resume function",channeltype)
+            # Unpack the field count
+            field_count = struct.unpack('!B', data[offset:offset + 1])[0]
+            offset += 1
+
+
+            # Unpack the field ID
+            field_id = struct.unpack('!B', data[offset:offset + 1])[0]
+            offset += 1
+
+            # Unpack the field length
+            field_length = struct.unpack('!H', data[offset:offset + 2])[0]
+            offset += 2
+
+            # Extract the string value and decode it
+            string_val = data[offset:offset + field_length].decode('utf-8')
+            offset += field_length
+            print(string_val)
+            if string_val == "K":
+                if channeltype == 7:
+                    print("Channel Paused")
+                elif channeltype == 8:
+                    print("channel resumed")
+            else:
+                if channeltype == 7:
+                    self.ErrResponse['message'] = "Channel not paused"
+                    self.On_error(self.ErrResponse)
+                elif channeltype == 8:
+                    self.ErrResponse['message'] = "Channel not Resumed"
+                    self.On_error(self.ErrResponse)
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+            # self.ErrResponse['message'] = 'Error while pausing channel'
+            # self.O       
 
     def response_msg(self , data):
 
+
         datasize, respType = struct.unpack('!HB', data[:3])
         if respType == 1: # Authentication response
-             print(self.auth_resp(data))
+            print(self.auth_resp(data))
 
         elif respType == 5: # Unsubsciption response
 
-           print(self.unsubscribe_resp(data))
+            print(self.unsubscribe_resp(data))
 
         elif respType == 12: # Full Mode Data Response
 
@@ -962,12 +953,10 @@ class FyersHsmSocket():
             self.datafeed_resp(data)
         
         elif respType == 5:
-            self.unsubscribe_resp(data)
+            self.unsubscribe_resp()
 
         elif respType == 7 or respType == 8:
             self.resume_pause_response_resp(data , respType)
-        
-
 
     def check_auth_and_symbol(self):
 
@@ -989,7 +978,111 @@ class FyersHsmSocket():
             print(error_msg)
         return self.symbol_value[1]
 
+    def channel_resume_pause(self):
 
+        if self.websocket is not None and self.active_channel is not None and self.active_channel != self.channelNum:
+            message = self.channel_pause_msg(self.active_channel)
+            self.message.append(message)
+            print(self.running_channels, '----------------')
+            if self.channelNum in self.running_channels:
+                print('-----------------RESUMED---------------')
+                message = self.channel_resume_msg(self.channelNum)
+                self.message.append(message)
+        self.running_channels.add(self.channelNum)
+
+        
+        self.active_channel = self.channelNum
+
+    def on_message(self,message):
+        try:
+            print('eeafef-------')
+            print(self.response_msg(message))
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+    
+    def on_error(self, ws, error):
+        try:
+            print('Error:', error)
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print("Error in on_error(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+
+    def on_open(self, ws):
+        try:
+            print('WebSocket connection opened')
+            message = self.token_to_byte()
+            self.websocket.send(message, websocket.ABNF.OPCODE_BINARY)
+            print('------msg---sent-------')
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print("Error in on_open(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+
+    def on_close(self, ws):
+        try:
+            print('WebSocket connection closed')
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print("Error in on_close(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+
+    def init_connection(self):
+        try:
+
+            self.websocket = websocket.WebSocketApp(
+                self.url,
+                on_message=lambda ws, msg: self.on_message(msg),
+                on_error=lambda ws, msg: self.on_error(msg),
+                on_close=lambda ws: self.on_close(ws),
+                on_open=lambda ws: self.on_open(ws)
+            )
+
+            self.t = Thread(target=self.websocket.run_forever)
+            self.t.daemon = self.background_flag
+            self.t.start()
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print("Error in init_connection(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+
+    def close(self):
+        try:
+            if self.websocket and not self.websocket.closed:
+                self.websocket.close()
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            print("Error in close(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+
+    def subscribe(self, symbols, dataType=None, channel=1):
+        try:
+            self.init_connection()
+            print('----------',self.__ws_object)
+
+            time.sleep(2)
+            self.datatype = dataType
+            self.symbols = symbols
+            self.channelNum = channel
+            self.channel_symbol = self.check_auth_and_symbol()
+            self.symbol_token = dict(self.symbol_token | self.channel_symbol)
+            self.scrips_count[self.channelNum] = list(self.channel_symbol.keys())
+            # if self.start is None:
+            # message = self.token_to_byte()
+            # self.websocket.send(message)
+            # print(self.websocket.recv())
+            print('------wdw----',self.websocket)
+            message = self.subscription_msg()
+            print("----sub---mesg------",message)
+            self.websocket.send(message, websocket.ABNF.OPCODE_BINARY)
+
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+   
 
     def logger_setup(self):
         if self.log_path is None:
@@ -1031,7 +1124,13 @@ class FyersHsmSocket():
         dictConfig(LOGGING)
         self.logger = logging.getLogger('fyers_socket')
 
-# datadict = ["sf|nse_cm|11536","sf|nse_cm|25","dp|nse_cm|25", "sf|nse_cm|22", "dp|nse_cm|22"]
-# access_token ="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODMwMDE4OTgsImV4cCI6MTY4MzA3MzgzOCwibmJmIjoxNjgzMDAxODk4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa1VKSXFKLTNQMl9BSXFWWFNWUlg5UXlIVW5QWlpGRnFnNG5xRkNWRzYwQU5qX0F6T2hVWmxPZmtCNUV4ak03MXBMWVlqSEpjWXBsaVpVNWpFREQ1R3JFVkt4Rmx0SzR4RDh2SERVdkZndWgwUEVGRT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.MghUuBXEV3INDwH-buwTUvJDvBQ0HS37d69nwRCE7nE"
-# client = FyersHsmSocket(access_token,datadict)
-# client.subscribe()
+
+
+
+
+access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODcwMTEyNTIsImV4cCI6MTY4NzA0ODIxMiwibmJmIjoxNjg3MDExMjUyLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2piLTBsaHNoNmIxbHRWOXdabTFxNE45NGNfLXFlWDRNMDk0QmZfbUNKNzF1Y1VWelNoZDYwNHhoNm52MWxRZmdmaWU4VXBhVGRUdXhsLWhhNVlabE9aWUpQRW5JRFVRLVBmUGI0cmlKelFvb2N5RT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.T_Y6EVInh_0p3Fk5GqMH0KHfi2YbOsBZoGKX0qil72I"
+
+client = FyersHsmSocket(access_token)
+symbols = ['NSE:NIFTYBANK-INDEX','NSE:FINNIFTY-INDEX',]
+# Subscribe to initial symbols in a separate thread
+client.subscribe(symbols,'SymbolUpdate',channel=2)
