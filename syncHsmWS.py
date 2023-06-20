@@ -224,8 +224,9 @@ class FyersHsmSocket():
         self.websocket = None
         self.lite = litemode
         self.sleep = 0
-        
-        self.background_flag= True
+        self.__ws_run = None
+        self.run_background = False
+        self.background_flag= False
         self.output = {}
         self.literesp = {}
         self.channel_symbol = []
@@ -233,6 +234,7 @@ class FyersHsmSocket():
         self.scrips_count = {}
         self.scrips_per_channel = {}
         self.start = False
+        self.websocket_lock = threading.Lock()
         self.unsub_symbol = []
         for i in range(1, 31):
             self.scrips_per_channel[i] = []
@@ -315,6 +317,52 @@ class FyersHsmSocket():
             self.logger.error("Error While packing Token msg", e)
 
 
+    def lite_mode_msg(self):
+        try:
+
+            self.channels = [self.channelNum]
+            print('---channels lite------',self.channels)
+            data = bytearray()
+
+            data.extend(struct.pack('>H', 0))
+
+            data.extend(struct.pack('B', 12))
+
+            data.extend(struct.pack('B', 2))
+
+            channel_bits = 0
+            for channel_num in self.channels:
+                if channel_num < 64 and channel_num > 0:
+                    channel_bits |= 1 << channel_num
+            # Field-1
+            field_1 = bytearray()
+            field_1.extend(struct.pack('B', 1))   
+            field_1.extend(struct.pack('>H', 8))    
+            field_1.extend(struct.pack('>Q', channel_bits))  
+            data.extend(field_1)
+            
+            # Field-2
+            field_2 = bytearray()
+            field_2.extend(struct.pack('B', 2))    
+            field_2.extend(struct.pack('>H', 1))    
+            field_2.extend(struct.pack('B', 76))   
+            data.extend(field_2)
+
+            data_length = len(data) - 2
+            data[0] = (data_length >> 8) & 0xFF
+            data[1] = data_length & 0xFF
+
+            return data    
+        
+        except Exception as e:
+            print(e)
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{} Data:{}".format(exc_tb.tb_lineno, str(e), data))
+ 
+            self.logger.error("Error While packing lite mode msg", e)
+            return
+        
+        
     def full_mode_msg(self):
         try:
 
@@ -557,11 +605,10 @@ class FyersHsmSocket():
                 offset += field_length
 
                 if string_val == "K":
-                    print("Full mode on")
+                    print("Mode Changed")
                 else:
-                    print("Error in full mode connection")
-            else:
-                print("No fields found in the response")
+                    print("Error in Mode Change")
+
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -859,6 +906,8 @@ class FyersHsmSocket():
                     if sf_flag:
                         self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
                     elif idx_flag:
+                        print('---------index--------85')
+
                         self.response_output(self.resp[self.index_sym[topicId]],'index')
                     elif dp_flag:
                         self.response_output(self.resp[self.dp_sym[topicId]],'depth')
@@ -869,19 +918,41 @@ class FyersHsmSocket():
                     offset += 1
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
-                    sf_flag , idx_flag , dp_flag = False, False,False
+                    sf_flag , idx_flag  = False, False
+                    # # self.literesp[self.symDict[topicId]] = {}
 
-                    # self.literesp[self.symDict[topicId]] = {}
+                    # for index in range(3):
+                    #     value = struct.unpack('>I', data[offset:offset+4])[0]
+                    #     offset += 4
+                    #     self.resp[self.symDict[topicId]][self.dataVal[index]] = value 
 
-                    for index in range(3):
-                        value = struct.unpack('>I', data[offset:offset+4])[0]
-                        offset += 4
-                        self.resp[self.symDict[topicId]][self.dataVal[index]] = value 
+                    # # self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
+                    # # self.resp[self.symDict[topicId]]['precision']  = self.resp[self.symDict[topicId]]['precision']
+                    # # print('---------------',self.resp[self.symDict[topicId]],'-------------')
+                    # self.response_output(self.resp[self.symDict[topicId]])
+                    if topicId in self.scrips_sym:
 
-                    # self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
-                    # self.resp[self.symDict[topicId]]['precision']  = self.resp[self.symDict[topicId]]['precision']
-                    # print('---------------',self.resp[self.symDict[topicId]],'-------------')
-                    self.response_output(self.resp[self.symDict[topicId]])
+                        for index in range(3):
+                            value = struct.unpack('>I', data[offset:offset+4])[0]
+                            offset += 4
+                            self.resp[self.scrips_sym[topicId]][self.dataVal[index]] = value
+                            sf_flag = True
+
+                    elif topicId in self.index_sym:
+                            value = struct.unpack('>I', data[offset:offset+4])[0]
+                            offset += 4
+                            self.resp[self.index_sym[topicId]][self.indexVal[index]] = value
+                    else:
+                        print(topicId,self.scrips_sym , self.index_sym )
+
+                    if sf_flag:
+                        # self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
+                        print("scrips  ", self.resp[self.scrips_sym[topicId]])
+                    elif idx_flag:
+                        # self.response_output(self.resp[self.index_sym[topicId]],'index')
+                        print("index  ",self.resp[self.index_sym[topicId]])
+                    else:
+                        print(topicId,self.scrips_sym , self.index_sym )
                 else:
                     pass                    
                 
@@ -980,29 +1051,53 @@ class FyersHsmSocket():
 
     def channel_resume_pause(self):
 
-        if self.websocket is not None and self.active_channel is not None and self.active_channel != self.channelNum:
+        if self.__ws_object is not None and self.active_channel is not None and self.active_channel != self.channelNum:
             message = self.channel_pause_msg(self.active_channel)
             self.message.append(message)
-            print(self.running_channels, '----------------')
             if self.channelNum in self.running_channels:
                 print('-----------------RESUMED---------------')
                 message = self.channel_resume_msg(self.channelNum)
                 self.message.append(message)
         self.running_channels.add(self.channelNum)
 
-        
+        print(self.running_channels, '----------------')
+
         self.active_channel = self.channelNum
+
+
+
+    def send_message(self,message):
+        with self.websocket_lock:
+            print('---msg----',message)
+
+            self.__ws_object.send(message, websocket.ABNF.OPCODE_BINARY)
+
+    def process_message_queue(self):
+        while True:
+            if self.message:
+                message = self.message.pop(0)
+                self.send_message(message)
+            else:
+                # No messages in the queue, sleep or perform other actions as needed
+                pass
+
+    def On_error(self,message):
+        self.logger.error(message)
+        if self.OnError is not None:
+            self.OnError(message)
+        else:
+            print(f"Error Response : {message}")
+
 
     def on_message(self,message):
         try:
-            print('eeafef-------')
-            print(self.response_msg(message))
+            self.response_msg(message)
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
             self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
     
-    def on_error(self, ws, error):
+    def on_error(self, error):
         try:
             print('Error:', error)
         except Exception as e:
@@ -1013,9 +1108,17 @@ class FyersHsmSocket():
     def on_open(self, ws):
         try:
             print('WebSocket connection opened')
-            message = self.token_to_byte()
-            self.websocket.send(message, websocket.ABNF.OPCODE_BINARY)
-            print('------msg---sent-------')
+            if self.__ws_object is None:
+                self.__ws_object = ws
+                # self.send_message()
+                thread = threading.Thread(target=self.process_message_queue)
+                thread.start()
+
+                message = self.token_to_byte()
+                self.message.append(message)
+                # thread.join()
+
+            # print('------msg---sent-------')
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -1031,31 +1134,59 @@ class FyersHsmSocket():
 
     def init_connection(self):
         try:
+            if self.__ws_object is None:
+                if self.run_background:
+                    self.background_flag = True
 
-            self.websocket = websocket.WebSocketApp(
-                self.url,
-                on_message=lambda ws, msg: self.on_message(msg),
-                on_error=lambda ws, msg: self.on_error(msg),
-                on_close=lambda ws: self.on_close(ws),
-                on_open=lambda ws: self.on_open(ws)
-            )
+                ws = websocket.WebSocketApp(
+                    self.url,
+                    on_message=lambda ws, msg: self.on_message(msg),
+                    on_error=lambda ws, msg: self.on_error(msg),
+                    on_close=lambda ws: self.on_close(ws),
+                    on_open=lambda ws: self.on_open(ws)
+                )
 
-            self.t = Thread(target=self.websocket.run_forever)
-            self.t.daemon = self.background_flag
-            self.t.start()
+                self.t = Thread(target= ws.run_forever)
+                self.t.daemon = self.background_flag
+                self.t.start()
+            
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
             print("Error in init_connection(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+	
+    def keep_running(self):
+        self.__ws_run = True
+        t = Thread(target=self.infinite_loop)
+        t.start()
 
-    def close(self):
+    def infinite_loop(self):
+        while(self.__ws_run):
+            pass
+
+    def unsubscribe(self, symbols, dataType=None, channel=1):
         try:
-            if self.websocket and not self.websocket.closed:
-                self.websocket.close()
+            self.datatype = dataType
+            self.symbols = symbols
+            self.channelNum = channel
+            self.channel_symbol = self.check_auth_and_symbol()
+            self.unsub_symbol = list(self.channel_symbol.keys())
+            for symb in self.unsub_symbol:
+                if symb in self.scrips_count[self.channelNum]:
+                    self.scrips_count[self.channelNum].remove(symb)
+                else:
+                    self.unsub_symbol.remove(symb)
+                
+            self.channel_resume_pause()
+            message = self.unsubscription_msg(self.unsub_symbol)
+            self.message.append(message)
+
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
-            print("Error in close(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+            self.logger.error("payload_creation :: ERR : -> Line:{} Exception:{}".format(exc_tb.tb_lineno, str(e)))
+   
+
 
     def subscribe(self, symbols, dataType=None, channel=1):
         try:
@@ -1069,14 +1200,16 @@ class FyersHsmSocket():
             self.channel_symbol = self.check_auth_and_symbol()
             self.symbol_token = dict(self.symbol_token | self.channel_symbol)
             self.scrips_count[self.channelNum] = list(self.channel_symbol.keys())
-            # if self.start is None:
-            # message = self.token_to_byte()
-            # self.websocket.send(message)
-            # print(self.websocket.recv())
-            print('------wdw----',self.websocket)
+            self.channel_resume_pause()
+            if self.lite:
+                message = self.lite_mode_msg()
+                self.message.append(message)
+            else:
+                message = self.full_mode_msg()
+                self.message.append(message)
+
             message = self.subscription_msg()
-            print("----sub---mesg------",message)
-            self.websocket.send(message, websocket.ABNF.OPCODE_BINARY)
+            self.message.append(message)
 
         except Exception as e:
             print(e)
@@ -1128,9 +1261,51 @@ class FyersHsmSocket():
 
 
 
-access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODcwMTEyNTIsImV4cCI6MTY4NzA0ODIxMiwibmJmIjoxNjg3MDExMjUyLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2piLTBsaHNoNmIxbHRWOXdabTFxNE45NGNfLXFlWDRNMDk0QmZfbUNKNzF1Y1VWelNoZDYwNHhoNm52MWxRZmdmaWU4VXBhVGRUdXhsLWhhNVlabE9aWUpQRW5JRFVRLVBmUGI0cmlKelFvb2N5RT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.T_Y6EVInh_0p3Fk5GqMH0KHfi2YbOsBZoGKX0qil72I"
+access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODcyMzY5ODQsImV4cCI6MTY4NzMwNzQyNCwibmJmIjoxNjg3MjM2OTg0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2tURjRQcnU5NV93V1BHUG9OX0pGTFU2WEVlV1phVXAxVmRJUjRiVnY2T0FFWXFRUjBRYTV2NTZpczVKME4yR3VISmdNbldJUFRwZFk3UmdBVzlqM0gzT1JGVnB5SlN3VkZieGVnVUdSU0FRbTVVQT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.w6LKdf1D3PWOX8ZjL743PTj10-rEWvb9-jPfVct-ahY"
 
-client = FyersHsmSocket(access_token)
-symbols = ['NSE:NIFTYBANK-INDEX','NSE:FINNIFTY-INDEX',]
+client = FyersHsmSocket(access_token,litemode=True)
+symbols = ['MCX:CRUDEOIL23JUNFUT','NSE:NIFTYBANK-INDEX',"NSE:SBIN-EQ",]
 # Subscribe to initial symbols in a separate thread
-client.subscribe(symbols,'SymbolUpdate',channel=2)
+threading.Thread(client.subscribe(symbols,'SymbolUpdate',channel=10)).start()
+# symbols = ['MCX:CRUDEOIL23JUNFUT','NSE:FINNIFTY-INDEX']
+
+threading.Thread(client.unsubscribe(symbols,'SymbolUpdate',channel=10)).start()
+
+client.keep_running()
+
+
+# symbol_list = [ 
+#     [ "NSE:SBIN-EQ", ],
+
+#     [   "NSE:NIFTY50-INDEX", ],
+    
+# ]
+
+
+# global lst 
+# lst = []
+# def custom_message(message):
+#     print(message)
+#     if message[0]['symbol'] not in lst:
+#         lst.append(message[0]['symbol'])
+#     print(len(lst))
+    
+# connection_pool = []
+
+# def connect_and_subscribe(symbols,channel):
+#     data_type = "orderUpdate"
+#     # access_token=  "XC4EOD67IM-100:eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODY4MDIxMzMsImV4cCI6MTY4Njg3NTQ1MywibmJmIjoxNjg2ODAyMTMzLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2lvN1Z2cjBjdzdOSzNGNjdIZnBIT3hSM3dPbklqem9oSG5qcDlRSEhyMzBfV21vSmo4dUZYUmJHSlR5b2VpejFHZ3JISTFNUGx1SVVobGJKNGtoUUZyZGUzT0M5dy1lXy15SFQ0by1NTGhvMTNTbz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.sI4dPJZc60deQyTrxmWj2kD8tZeeb_i8NveCiGDHRho"
+#     fs = FyersHsmSocket(access_token)
+#     fs.websocket_data = custom_message
+#     fs.subscribe(symbols,'SymbolUpdate',channel)
+#     connection_pool.append(fs)
+# channel = 0
+# for symbols in symbol_list:
+#     print(len(symbols))
+#     channel += 1
+#     thread = threading.Thread(target=connect_and_subscribe, args=(symbols,channel))
+#     thread.start()
+
+# for thread in threading.enumerate():
+#     if thread != threading.current_thread():
+#         thread.join()
