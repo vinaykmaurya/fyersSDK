@@ -19,18 +19,14 @@ import websockets
 
 class SymbolConverstion():
 
-    def __init__(self,access_token,symbols,datatype):
-        self.symbols = symbols
+    def __init__(self,access_token,datatype):
         self.datatype = datatype
         self.access_token = access_token
 
 
-    def symbol_to_token(self):   
-
-        symbols =','.join(self.symbols)
-        print(len(self.symbols))
-        client_id = ""
-        
+    def symbol_to_token(self,symbols):   
+        print('----len of symbol----',len(symbols))
+        symbols =','.join(symbols)        
         fyers = FyersModelv3(token=self.access_token, is_async=False)
         quotesData = fyers.quotes({"symbols": symbols})
         datadict = {}
@@ -221,8 +217,8 @@ class FyersHsmSocket():
         self.OnMessage = None
         self.OnError = None
         self.OnOpen =  None
+        self.onPing = None
         self.websocket = None
-        self.lite = litemode
         self.sleep = 0
         self.__ws_run = None
         self.run_background = False
@@ -251,6 +247,7 @@ class FyersHsmSocket():
         self.index_sym = {}
         self.scrips_sym = {}
         self.ErrResponse = {"code":-99,"message":"","s":"error"}
+        self.SuccesResponse = {"code":200,"message":"","s":"Ok"}
         self.ack_bool = False
         self.dataVal = ["ltp","vol_traded_today" , "last_traded_time" , "ExFeedTime" , "bidSize" , 
                         "askSize" , "bidPrice" , "askPrice" , "last_traded_qty" , "tot_buy_qty" , 
@@ -408,15 +405,13 @@ class FyersHsmSocket():
             self.logger.error("Error While packing Full mode msg", e)
             return
         
-    def subscription_msg(self):
+    def subscription_msg(self,symbols):
         try:
             # self.scrips = self.symbol_token.keys()
-            self.scrips_per_channel[self.channelNum] += self.scrips_count[self.channelNum]
-            self.scrips = self.scrips_count[self.channelNum]
-            print('----------self.scrips_per_channel[self.channelNum]------',self.scrips_per_channel)
+            self.scrips_per_channel[self.channelNum] += symbols
+            self.scrips = symbols
+            print('----------self.scrips_per_channel[self.channelNum]------',len(self.scrips_per_channel[self.channelNum]))
 
-
-            print(len(self.scrips))
             self.scripsData = bytearray()
             self.scripsData.append(len(self.scrips) >> 8 & 0xFF)
             self.scripsData.append(len(self.scrips) & 0xFF)
@@ -532,9 +527,12 @@ class FyersHsmSocket():
             offset += field_length
 
             if string_val == "K":
-                print("Authentication done")
+                self.SuccesResponse['message'] = "Authentication Success"
+                self.On_message(self.SuccesResponse)
+                # print("Authentication done")
             else:
-                print("Authentication failed")
+                self.ErrResponse['message'] = 'Authentication failed'
+                self.On_error(self.ErrResponse)
 
             field_id = struct.unpack('!B', data[offset:offset+1])[0]
             offset += 1
@@ -583,7 +581,7 @@ class FyersHsmSocket():
             self.logger.error("Error While Unpacking unsubscribe msg", e)
             return
                        
-    def full_mode_resp(self, data):
+    def lite_full_mode_resp(self, data):
         try:
             offset = 3
 
@@ -605,7 +603,11 @@ class FyersHsmSocket():
                 offset += field_length
 
                 if string_val == "K":
-                    print("Mode Changed")
+                    if self.lite:
+                        print("Lite Mode ON")
+                    else:
+                        print("Full Mode ON")
+
                 else:
                     print("Error in Mode Change")
 
@@ -881,7 +883,7 @@ class FyersHsmSocket():
 
                         self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
                     
-                elif dataType == 85: #Full mode darafeed
+                elif dataType == 85: #Full mode datafeed
                     offset += 1
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
@@ -919,17 +921,6 @@ class FyersHsmSocket():
                     topicId = struct.unpack('H', data[offset:offset+2])[0]
                     offset += 2
                     sf_flag , idx_flag  = False, False
-                    # # self.literesp[self.symDict[topicId]] = {}
-
-                    # for index in range(3):
-                    #     value = struct.unpack('>I', data[offset:offset+4])[0]
-                    #     offset += 4
-                    #     self.resp[self.symDict[topicId]][self.dataVal[index]] = value 
-
-                    # # self.resp[self.symDict[topicId]]['symbol']  = self.resp[self.symDict[topicId]]['symbol']
-                    # # self.resp[self.symDict[topicId]]['precision']  = self.resp[self.symDict[topicId]]['precision']
-                    # # print('---------------',self.resp[self.symDict[topicId]],'-------------')
-                    # self.response_output(self.resp[self.symDict[topicId]])
                     if topicId in self.scrips_sym:
 
                         for index in range(3):
@@ -946,8 +937,8 @@ class FyersHsmSocket():
                         print(topicId,self.scrips_sym , self.index_sym )
 
                     if sf_flag:
-                        # self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
-                        print("scrips  ", self.resp[self.scrips_sym[topicId]])
+                        self.response_output(self.resp[self.scrips_sym[topicId]],'scrips')
+                        # print("scrips  ", self.resp[self.scrips_sym[topicId]])
                     elif idx_flag:
                         # self.response_output(self.resp[self.index_sym[topicId]],'index')
                         print("index  ",self.resp[self.index_sym[topicId]])
@@ -1010,7 +1001,7 @@ class FyersHsmSocket():
 
         datasize, respType = struct.unpack('!HB', data[:3])
         if respType == 1: # Authentication response
-            print(self.auth_resp(data))
+            self.auth_resp(data)
 
         elif respType == 5: # Unsubsciption response
 
@@ -1018,7 +1009,7 @@ class FyersHsmSocket():
 
         elif respType == 12: # Full Mode Data Response
 
-            print(self.full_mode_resp(data))
+            print(self.lite_full_mode_resp(data))
 
         elif respType == 6: # Data Feed Response
             self.datafeed_resp(data)
@@ -1030,26 +1021,28 @@ class FyersHsmSocket():
             self.resume_pause_response_resp(data , respType)
 
     def check_auth_and_symbol(self):
+        # self.symbols
+        symbol_dict = {}
+        total_symbols = len(self.symbols)
+        symbol_chunks = [self.symbols[i:i+50] for i in range(0, total_symbols, 50)]
+        conv = SymbolConverstion(self.access_token, self.datatype)
+        print('------symbol_chunks-------',total_symbols)
+        for symbols in symbol_chunks:
+            symbol_value = conv.symbol_to_token(symbols)
+            symbol_dict = dict(symbol_dict | symbol_value[1])
+            if type(symbol_value[0]) == list and len(symbol_value[0]) > 0:
+                self.ErrResponse['code'] = -300
+                self.ErrResponse['s'] = 'error'
+                self.ErrResponse['message'] = 'Please provide a valid symbol'
+                
+                if 'symbols' in self.ErrResponse:
+                    self.ErrResponse['symbols'] += symbol_value[0]
+                else:
+                    self.ErrResponse['symbols'] = symbol_value[0]
+                print('-------self.ErrResponse------',self.ErrResponse)
+        return symbol_dict
 
-        conv = SymbolConverstion(self.access_token, self.symbols, self.datatype)
-        error_msg = {}
-        self.symbol_value = conv.symbol_to_token()
-        # print(self.symbol_value)
-        if 's' in self.symbol_value[0] and self.symbol_value[0]['s'] == 'error':
-            self.error_flag = True
-            error_msg['code'] = -1600
-            error_msg['s'] = 'error'
-            error_msg['message'] = 'Could not authenticate the user '
-            print(error_msg)
-        elif type(self.symbol_value[0]) == list and len(self.symbol_value[0]) > 0:
-            error_msg['code'] = -300
-            error_msg['s'] = 'error'
-            error_msg['message'] = 'Please provide a valid symbol'
-            error_msg['symbols'] = self.symbol_value[0]
-            print(error_msg)
-        return self.symbol_value[1]
-
-    def channel_resume_pause(self):
+    def __channel_resume_pause(self):
 
         if self.__ws_object is not None and self.active_channel is not None and self.active_channel != self.channelNum:
             message = self.channel_pause_msg(self.active_channel)
@@ -1104,6 +1097,17 @@ class FyersHsmSocket():
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
             print("Error in on_error(): Line {}: {}".format(exc_tb.tb_lineno, str(e)))
+            
+    def on_ping(self,data):
+
+        print('-----------ping sent-----------',data)
+        # if self.onPing is None:
+        #     self.onPing = True
+        #     while True:
+        #         self.__ws_object.send("ping")
+        #         time.sleep(15)
+            
+
 
     def on_open(self, ws):
         try:
@@ -1111,14 +1115,13 @@ class FyersHsmSocket():
             if self.__ws_object is None:
                 self.__ws_object = ws
                 # self.send_message()
-                thread = threading.Thread(target=self.process_message_queue)
-                thread.start()
-
+                threading.Thread(target=self.process_message_queue).start()
+                # threading.Thread(target=self.on_ping).start()
                 message = self.token_to_byte()
                 self.message.append(message)
                 # thread.join()
 
-            # print('------msg---sent-------')
+            print('------msg---sent-------')
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -1144,12 +1147,13 @@ class FyersHsmSocket():
                     on_error=lambda ws, msg: self.on_error(msg),
                     on_close=lambda ws: self.on_close(ws),
                     on_open=lambda ws: self.on_open(ws)
+                    
                 )
-
+                # ws.on_ping = lambda data: self.on_ping(data)
                 self.t = Thread(target= ws.run_forever)
                 self.t.daemon = self.background_flag
                 self.t.start()
-            
+
         except Exception as e:
             print(e)
             exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -1166,6 +1170,9 @@ class FyersHsmSocket():
 
     def unsubscribe(self, symbols, dataType=None, channel=1):
         try:
+
+            self.__channel_resume_pause()
+
             self.datatype = dataType
             self.symbols = symbols
             self.channelNum = channel
@@ -1173,13 +1180,19 @@ class FyersHsmSocket():
             self.unsub_symbol = list(self.channel_symbol.keys())
             for symb in self.unsub_symbol:
                 if symb in self.scrips_count[self.channelNum]:
+                    print('unsubsysmbol in: ',symb)
                     self.scrips_count[self.channelNum].remove(symb)
                 else:
+                    print('unsubsysmbol not in : ',symb)
+
                     self.unsub_symbol.remove(symb)
-                
-            self.channel_resume_pause()
-            message = self.unsubscription_msg(self.unsub_symbol)
-            self.message.append(message)
+
+            total_symbols = len(self.unsub_symbol)
+            symbol_chunks = [self.unsub_symbol[i:i+50] for i in range(0, total_symbols, 50)]
+            print("unsub chunk",symbol_chunks)
+            for symbols in symbol_chunks:
+                message = self.unsubscription_msg(symbols)
+                self.message.append(message)
 
         except Exception as e:
             print(e)
@@ -1188,28 +1201,38 @@ class FyersHsmSocket():
    
 
 
-    def subscribe(self, symbols, dataType=None, channel=1):
+    def subscribe(self, symbols, dataType=None, channel=1 , litemode = False):
         try:
             self.init_connection()
-            print('----------',self.__ws_object)
+            time.sleep(1)
+            print("...........")
 
-            time.sleep(2)
             self.datatype = dataType
             self.symbols = symbols
             self.channelNum = channel
-            self.channel_symbol = self.check_auth_and_symbol()
-            self.symbol_token = dict(self.symbol_token | self.channel_symbol)
-            self.scrips_count[self.channelNum] = list(self.channel_symbol.keys())
-            self.channel_resume_pause()
+            self.lite = litemode
+            self.__channel_resume_pause()
             if self.lite:
                 message = self.lite_mode_msg()
                 self.message.append(message)
             else:
                 message = self.full_mode_msg()
                 self.message.append(message)
+            self.channel_symbol = self.check_auth_and_symbol()
+            self.symbol_token = dict(self.symbol_token | self.channel_symbol)
+            self.scrips_count[self.channelNum] = list(self.channel_symbol.keys())
+            total_symbols = len(self.scrips_count[self.channelNum])
+            print('len(self.symbol_token)------------',total_symbols)
+            if len(self.scrips_per_channel[self.channelNum]) > 100 or total_symbols > 100:
+                # return self.ErrResponse
+                print("limit exceed...........")
+                return
+                # return "Limit exceedddddddd"
 
-            message = self.subscription_msg()
-            self.message.append(message)
+            symbol_chunks = [self.scrips_count[self.channelNum][i:i+50] for i in range(0, total_symbols, 50)]
+            for symbols in symbol_chunks:
+                message = self.subscription_msg(symbols)
+                self.message.append(message)
 
         except Exception as e:
             print(e)
@@ -1261,17 +1284,119 @@ class FyersHsmSocket():
 
 
 
-access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODcyMzY5ODQsImV4cCI6MTY4NzMwNzQyNCwibmJmIjoxNjg3MjM2OTg0LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2tURjRQcnU5NV93V1BHUG9OX0pGTFU2WEVlV1phVXAxVmRJUjRiVnY2T0FFWXFRUjBRYTV2NTZpczVKME4yR3VISmdNbldJUFRwZFk3UmdBVzlqM0gzT1JGVnB5SlN3VkZieGVnVUdSU0FRbTVVQT0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.w6LKdf1D3PWOX8ZjL743PTj10-rEWvb9-jPfVct-ahY"
+access_token=  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODczMTc0ODIsImV4cCI6MTY4NzM5MzgwMiwibmJmIjoxNjg3MzE3NDgyLCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa2ttdnFWNXBlV3F3RjV0cTU3cVh2Y0h4T0d0U2VvenF4dlQ1dl8zek9pcnBycXoxaEs1MGpwaDAzWW8wT3ZsdXZmSGNiUzFuRmEwWE1PemxrVW9uMERwcktCMEY2TTNESVpXeklQaWRaTTI2VWRhdz0iLCJkaXNwbGF5X25hbWUiOiJWSU5BWSBLVU1BUiBNQVVSWUEiLCJvbXMiOiJLMSIsImZ5X2lkIjoiWFYyMDk4NiIsImFwcFR5cGUiOjEwMCwicG9hX2ZsYWciOiJOIn0.CR8dof6GZnKb1e6DvaTDzLI8ppATCCBJQBZhvC7aHVY"
 
-client = FyersHsmSocket(access_token,litemode=True)
-symbols = ['MCX:CRUDEOIL23JUNFUT','NSE:NIFTYBANK-INDEX',"NSE:SBIN-EQ",]
+client = FyersHsmSocket(access_token)
+symbols = ['NSE:NIFTYBANK-INDEX']
+symbols = ['NSE:SBIN-EQ','NSE:NIFTYBANK-INDEX',    'NSE:WIPRO-EQ',
+    'NSE:NIFTY50-INDEX',
+    'NSE:NIFTYBANK-INDEX',
+    'NSE:ADANIENT-EQ',
+    'NSE:ADANIGREEN-EQ',
+    'NSE:AARTIIND-EQ',
+    'NSE:ADANITRANS-EQ',
+    'NSE:DEEPAKNTR-EQ',
+    'NSE:IRFC-EQ',
+    'NSE:IDEA-EQ',
+    'NSE:TATACOMM-EQ',    'NSE:ADANIGREEN-EQ',
+    'NSE:AARTIIND-EQ',
+    'NSE:ADANITRANS-EQ',
+    'NSE:DEEPAKNTR-EQ',
+    'NSE:IRFC-EQ',
+    'NSE:IDEA-EQ',
+    'NSE:TATACOMM-EQ',
+    'NSE:ZOMATO-EQ',
+    'NSE:PNB-EQ',
+    'NSE:BFINVEST-EQ',
+    'NSE:RECLTD-EQ',
+    'NSE:ZEEL-EQ',
+    'NSE:BRITANNIA-EQ',
+    'NSE:NIFTY50-INDEX',
+    'NSE:NIFTYBANK-INDEX',
+    'NSE:NIFTY100MFG-INDEX',
+    'NSE:NIFTY100ESG-INDEX',
+    'NSE:NIFTYDIGITAL-INDEX',
+    'NSE:NIFTYMICRO250-INDEX',
+    'NSE:NIFTYCONSDUR-INDEX',
+    'NSE:NIFTYHEALTH-INDEX',
+    'NSE:NIFTYOILGAS-INDEX',
+    'NSE:NIFTY100ESGSECLDR-INDEX',
+    'NSE:NIFTY200MOM30-INDEX',
+    'NSE:NIFTYALPHALOWVOL-INDEX',
+    'NSE:NIFTY200QLTY30-INDEX',
+    'NSE:NIFTYSMLCAP50-INDEX',
+    'NSE:NIFTYMIDSEL-INDEX',
+    'NSE:NIFTYMIDCAP150-INDEX',
+    'NSE:NIFTY100EQLWGT-INDEX',
+    'NSE:NIFTY50EQLWGT-INDEX',
+    'NSE:NIFTYGS200COMPOSITE-INDEX',
+    'NSE:NIFTYGS1115YR-INDEX',
+    'NSE:NIFTYGS48YR-INDEX',
+    'NSE:NIFTYGS10YRCLEAN-INDEX',
+    'NSE:NIFTYGS813YR-INDEX',
+    'NSE:NIFTYSMLCAP100-INDEX',
+    'NSE:NIFTY100QLTY30-INDEX',
+    'NSE:NIFTYPVTBANK-INDEX',
+    'NSE:NIFTYPHARMA-INDEX',
+    'NSE:NIFTYLARGEMID250-INDEX',
+    'NSE:NIFTYGS15YRPLUS-INDEX',
+    'NSE:NIFTYPSUBANK-INDEX',]
+
 # Subscribe to initial symbols in a separate thread
-threading.Thread(client.subscribe(symbols,'SymbolUpdate',channel=10)).start()
-# symbols = ['MCX:CRUDEOIL23JUNFUT','NSE:FINNIFTY-INDEX']
+threading.Thread(client.subscribe(symbols,'SymbolUpdate',channel=25,litemode=True)).start()
+symbols = ['NSE:NIFTYBANK-INDEX','NSE:FINNIFTY-INDEX',    'NSE:ADANIGREEN-EQ','NSE:ABAN-EQ', 'NSE:AMARAJABAT-EQ', 'NSE:EMAMIPAP-EQ', 'NSE:FACT-EQ', 'NSE:GODREJCP-EQ', 'NSE:SCHAEFFLER-EQ', 'NSE:ORICONENT-EQ', 'NSE:SETFNIF50-EQ', 'NSE:BALKRISHNA-EQ', 'NSE:SHYAMCENT-EQ', 'NSE:ADANITRANS-EQ', 'NSE:FEDERALBNK-EQ', 'NSE:CONFIPET-EQ', 'NSE:SYNGENE-EQ', 'NSE:KAYA-EQ', 'NSE:NGLFINE-EQ', 'NSE:AYMSYNTEX-EQ', 'NSE:PPL-EQ', 'NSE:AARON-EQ', 'NSE:RAMASTEEL-EQ', 'NSE:AURUM-EQ', 'NSE:RADHIKAJWE-EQ', 'NSE:DGCONTENT-EQ', 'NSE:CSLFINANCE-EQ', 'NSE:FINCABLES-EQ', 'NSE:JISLJALEQS-EQ', 'NSE:SHAREINDIA-EQ', 'NSE:STEELCITY-EQ', 'NSE:FINPIPE-EQ', 'NSE:MUTHOOTCAP-EQ', 'NSE:DYCL-EQ', 'NSE:AXISBNKETF-EQ', 'NSE:LUPIN-EQ', 'NSE:MCDOWELL-N-EQ', 'NSE:SATIN-EQ', 'NSE:ARVSMART-EQ', 'NSE:POWERMECH-EQ', 'NSE:RAMRAT-EQ', 'NSE:MOHEALTH-EQ', 'NSE:UTINIFTETF-EQ', 'NSE:KOTAKCONS-EQ', 'NSE:UTISENSETF-EQ', 'NSE:UFLEX-EQ', 'NSE:SHARDAMOTR-EQ', 'NSE:NAVKARCORP-EQ', 'NSE:RAMAPHO-EQ', 'NSE:NIFTYBEES-EQ', 'NSE:KRBL-EQ', 'NSE:MPSLTD-EQ', 'NSE:MARKSANS-EQ', 'NSE:TCI-EQ', 'NSE:ICICIMOM30-EQ', 'NSE:SHREEPUSHK-EQ', 'NSE:LOYALTEX-EQ', 'NSE:GUJGASLTD-EQ', 'NSE:BHARTIARTL-EQ', 'NSE:HDFCNEXT50-EQ', 'NSE:HDFCNIF100-EQ', 'NSE:ASAL-EQ', 'NSE:OLECTRA-EQ', 'NSE:PONNIERODE-EQ', 'NSE:PNB-EQ', 'NSE:KOTAKMNC-EQ', 'NSE:NIFTYQLITY-EQ', 'NSE:MOMENTUM-EQ', 'NSE:SURANAT&P-EQ', 'NSE:TIMESGTY-EQ', 'NSE:ICICIINFRA-EQ', 'NSE:INDIAMART-EQ', 'NSE:FOSECOIND-EQ', 'NSE:SPORTKING-EQ', 'NSE:OFSS-EQ', 'NSE:UNIONBANK-EQ',    'NSE:ADANIPORTS-EQ',
+    'NSE:ASIANPAINT-EQ',
+    'NSE:AXISBANK-EQ',
+    'NSE:BAJAJ-AUTO-EQ',
+    'NSE:BAJFINANCE-EQ',
+    'NSE:BAJAJFINSV-EQ',
+    'NSE:BHARTIARTL-EQ',
+    'NSE:BPCL-EQ',
+    'NSE:CIPLA-EQ',
+    'NSE:COALINDIA-EQ',
+    'NSE:DIVISLAB-EQ',
+    'NSE:DRREDDY-EQ',
+    'NSE:EICHERMOT-EQ',
+    'NSE:GRASIM-EQ',
+    'NSE:HCLTECH-EQ',
+    'NSE:HDFC-EQ',
+    'NSE:HDFCBANK-EQ',
+    'NSE:HDFCLIFE-EQ',
+    'NSE:HEROMOTOCO-EQ',
+    'NSE:HINDALCO-EQ',
+    'NSE:HINDUNILVR-EQ',
+    'NSE:ICICIBANK-EQ',
+    'NSE:INDUSINDBK-EQ',
+    'NSE:INFY-EQ',
+    'NSE:IOC-EQ',
+    'NSE:ITC-EQ',
+    'NSE:JSWSTEEL-EQ',
+    'NSE:KOTAKBANK-EQ',
+    'NSE:LT-EQ',
+    'NSE:M&M-EQ',
+    'NSE:MARUTI-EQ',
+    'NSE:NESTLEIND-EQ',
+    'NSE:NTPC-EQ',
+    'NSE:ONGC-EQ',
+    'NSE:POWERGRID-EQ',
+    'NSE:RELIANCE-EQ',
+    'NSE:SBI-EQ',
+    'NSE:SBILIFE-EQ',
+    'NSE:SHREECEM-EQ',
+    'NSE:SUNPHARMA-EQ',
+    'NSE:TATAMOTORS-EQ',
+    'NSE:TATASTEEL-EQ',
+    'NSE:TCS-EQ',
+    'NSE:TECHM-EQ',
+    'NSE:TITAN-EQ',
+    'NSE:ULTRACEMCO-EQ',
+    'NSE:UPL-EQ',
 
-threading.Thread(client.unsubscribe(symbols,'SymbolUpdate',channel=10)).start()
+    'NSE:NIFTY100LOWVOL30-INDEX',]
+time.sleep(5)
+threading.Thread(client.subscribe(symbols,'SymbolUpdate',channel=2)).start()
 
-client.keep_running()
+# client.keep_running()
 
 
 # symbol_list = [ 
